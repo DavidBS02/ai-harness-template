@@ -16,7 +16,10 @@ for f in HANDOFF.md opencode.json harness.json \
   .opencode/agents/explorador.md .opencode/agents/mecanico.md .opencode/agents/contexto-largo.md \
   .opencode/agents/revisor-gratis.md .opencode/agents/revisor-fuerte.md \
   .opencode/commands/ejecutar-spec.md .opencode/commands/handoff.md \
-  scripts/riesgo.sh scripts/doctor.sh scripts/github-setup.sh \
+  scripts/riesgo.sh scripts/inventario.sh scripts/doctor.sh scripts/github-setup.sh \
+  .harness/rutas-alto.txt .harness/rutas-bajo.txt \
+  .claude/commands/descubrir.md .opencode/commands/resumir-modulos.md \
+  docs/harness/MAPA.md docs/harness/DELEGACION.md \
   .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/feature.md .github/workflows/ci.yml .github/workflows/riesgo.yml \
   docs/PLAYBOOK.md docs/ONBOARDING.md docs/INTEGRACION-FRAMEWORK.md docs/specs/_plantilla.md; do copiar "$f"; done
 chmod +x scripts/*.sh
@@ -33,4 +36,4 @@ echo
 echo "Listo. Siguientes pasos:"
 echo "  1. bash scripts/doctor.sh          (herramientas y logins)"
 echo "  2. bash scripts/github-setup.sh    (labels + protección de main; requiere remoto en GitHub)"
-echo "  3. claude  ->  /init-harness       (adapta AGENTS.md, riesgo.sh y ci.yml a este repo)"
+echo "  3. claude  ->  /descubrir          (Claude entiende el proyecto y decide el routing; luego aplica /init-harness)"

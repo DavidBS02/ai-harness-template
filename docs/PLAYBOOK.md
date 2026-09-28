@@ -17,6 +17,10 @@ Cada herramienta hace UNA cosa y el traspaso entre ellas siempre pasa por GitHub
 
 Aclaración: OmniRoute NO es un harness, es un gateway. "OmniRoute como revisor" significa: un subagente de OpenCode (`@revisor-gratis`) cuyo modelo viene de OmniRoute.
 
+## 0b. Fase 0: descubrimiento (antes de la primera feature)
+
+Claude Code corre `/descubrir`: inventario mecánico → resúmenes por módulo delegados a OpenCode → MAPA.md con zonas roja/amarilla/verde y rutas reales → `.harness/rutas-*.txt` (datos del routing) → DELEGACION.md (qué tarea de este repo va a qué modelo) → `/init-harness`. Después de esto, `scripts/riesgo.sh` clasifica con las rutas de TU repo, no con las genéricas. Repite `/descubrir` cuando el repo cambie de forma (nuevo módulo sensible, migración grande).
+
 ## 1. ¿OpenCode ejecuta y OmniRoute revisa, o al revés?
 
 OpenCode ejecuta, OmniRoute revisa. Razones:
@@ -108,7 +112,7 @@ Si el paso 6 devuelve trabajo a OpenCode, se repite 3→4→6 en la misma rama. 
 
 Por qué no Gemini Pro: desde marzo de 2026 la capa gratis de Google es solo Flash. DeepSeek V4 y Mistral Large son más fuertes y sus capas gratis permiten uso personal.
 
-Routing determinista: `scripts/riesgo.sh` clasifica el diff por rutas y tamaño (sin LLM). Lo usan `/spec`, `/ejecutar-spec`, `/juzgar-pr` y la Action `riesgo.yml`, que etiqueta el PR (`riesgo:bajo|medio|alto`) y comenta qué revisiones exige. Si el spec, el script y la etiqueta difieren, gana el nivel más alto.
+Routing determinista: `scripts/riesgo.sh` clasifica el diff por rutas y tamaño (sin LLM), leyendo `.harness/rutas-alto.txt` y `rutas-bajo.txt` que escribió `/descubrir`. Lo usan `/spec`, `/ejecutar-spec`, `/juzgar-pr` y la Action `riesgo.yml`, que etiqueta el PR (`riesgo:bajo|medio|alto`) y comenta qué revisiones exige. Si el spec, el script y la etiqueta difieren, gana el nivel más alto.
 - bajo: solo docs/tests/config → revisor-gratis + CI
 - medio: código de producción, o >5 archivos, o >300 líneas → + revisor-fuerte
 - alto: toca auth, pagos, migraciones, esquema, secretos, infra, workflows → + Luna + lectura tuya línea por línea

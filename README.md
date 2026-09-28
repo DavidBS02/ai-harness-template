@@ -22,12 +22,23 @@ cd /ruta/a/tu/proyecto && bash scripts/doctor.sh
 # 3. Configura GitHub (labels de riesgo + protección de main)
 bash scripts/github-setup.sh
 
-# 4. Deja que Claude Code adapte el harness a tu repo
+# 4. Fase 0: Claude entiende el proyecto y decide el routing
 claude
-> /init-harness
+> /descubrir
 ```
 
-`/init-harness` detecta si el repo está vacío o tiene código, identifica el stack, llena `AGENTS.md`, ajusta las rutas sensibles de `scripts/riesgo.sh`, escribe el `ci.yml` real y te deja los IDs de modelo pendientes claramente marcados.
+## Fase 0: descubrimiento (la parte que hace Claude)
+
+`/descubrir` es el workflow de inicio. Claude no llena plantillas a ciegas: primero entiende el repo y de ahí sale el routing.
+
+1. `scripts/inventario.sh` genera un inventario mecánico (sin LLM): tamaño, estructura, stack, tests, churn, rutas que huelen a sensibles, TODOs.
+2. Claude elige los módulos que importan y **delega los resúmenes a OpenCode** (`/resumir-modulos`, con DeepSeek Flash o Kimi K3 para módulos grandes). Así el repo grande no se come tu cuota de Claude.
+3. Claude lee resúmenes + archivos clave y escribe `docs/harness/MAPA.md`: arquitectura, **zonas roja / amarilla / verde con rutas reales**, zonas calientes, cobertura, reglas no escritas.
+4. Con eso escribe `.harness/rutas-alto.txt` y `rutas-bajo.txt`, que son los datos que lee `scripts/riesgo.sh`. El routing deja de ser genérico y pasa a ser el de tu repo.
+5. Escribe `docs/harness/DELEGACION.md`: qué tipo de tarea de ESTE repo va a qué modelo, y 3 primeros specs.
+6. Aplica todo al harness (`/init-harness`): AGENTS.md, "No tocar", ci.yml.
+
+En un repo vacío, la fase 0 es una conversación corta y produce un "mapa objetivo" con las zonas previstas.
 
 ## Flujo por feature
 
@@ -45,13 +56,14 @@ Detalle completo en `docs/PLAYBOOK.md`. Configuración por herramienta en `docs/
 AGENTS.md                 reglas del repo (única fuente; Claude la importa desde CLAUDE.md)
 CLAUDE.md                 @AGENTS.md + reglas solo de Claude Code
 HANDOFF.md                estado vivo de la rama
-.claude/commands/         /init-harness /spec /juzgar-pr /handoff
+.claude/commands/         /descubrir /init-harness /spec /juzgar-pr /handoff
 .opencode/agents/         build (implícito), explorador, mecanico, contexto-largo, revisor-gratis, revisor-fuerte
-.opencode/commands/       /ejecutar-spec /handoff
+.opencode/commands/       /resumir-modulos /ejecutar-spec /handoff
 opencode.json             modelos por defecto + proveedor OmniRoute
-scripts/                  bootstrap, doctor, github-setup, riesgo
+scripts/                  bootstrap, doctor, github-setup, inventario, riesgo
+.harness/                 rutas-alto.txt, rutas-bajo.txt (datos del routing; los escribe /descubrir)
 .github/                  plantillas de issue/PR, ci.yml, riesgo.yml
-docs/                     PLAYBOOK, ONBOARDING, INTEGRACION-FRAMEWORK, specs/
+docs/                     PLAYBOOK, ONBOARDING, INTEGRACION-FRAMEWORK, specs/, harness/ (INVENTARIO, MAPA, DELEGACION, resumenes/)
 harness.json              versión y lista de placeholders pendientes
 ```
 

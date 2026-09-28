@@ -1,0 +1,8 @@
+# Rutas de riesgo ALTO (una expresión regular por línea; se aplica sobre rutas relativas del repo).
+# Las llena Claude Code en /descubrir. Mientras tanto, valores por defecto:
+(^|/)(auth|login|session|oauth)(/|$|\.)
+(^|/)(payment|payments|billing|checkout)(/|$|\.)
+(^|/)(migrations?|schema)(/|$|\.)
+(^|/)(crypto|secrets?|\.env)(/|$|\.)
+(^|/)(infra|terraform|k8s|helm|Dockerfile)(/|$|\.)
+(^|/)\.github/workflows/

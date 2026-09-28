@@ -46,12 +46,18 @@ git remote add origin git@github.com:<usuario>/<repo>.git && git push -u origin 
 bash scripts/github-setup.sh     # labels riesgo:* + protección de main
 ```
 
-## 6. Adaptar al repo
+## 6. Fase 0: descubrimiento y routing
 ```bash
 bash scripts/doctor.sh
 claude
-> /init-harness
+> /descubrir            # se detendrá pidiendo resúmenes si el repo tiene código
+# en otra terminal, en el mismo repo:
+opencode
+> /resumir-modulos
+# de vuelta en Claude Code:
+> /descubrir            # continúa: MAPA.md, rutas de riesgo, DELEGACION.md, init-harness
 ```
+Confirma con Claude la tabla de zonas (roja/amarilla/verde) cuando te la muestre; es la decisión más importante del setup.
 
 ## 7. Prueba de humo (una feature pequeña, riesgo bajo)
 1. Claude Code: `/spec "agregar un endpoint /health"`.
