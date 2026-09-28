@@ -48,3 +48,6 @@ Deudas y verificaciones diferidas en un Markdown se desincronizan (lección 3). 
 
 ## 14. Probar el paquete, no solo la lógica
 Los hooks funcionaban en todas las pruebas locales y habrían fallado en silencio al clonar: git los tenía registrados sin permiso de ejecución y el bootstrap los "arreglaba" con `chmod` en el destino. La suite del harness incluye una prueba de empaquetado (modos en git), y el workflow `harness-selftest` la corre en CI.
+
+## 15. Lo desconocido se bloquea, no se adivina
+Enrutar una skill nueva por su prefijo es adivinar: `bmad-build` empieza como cualquier skill de redacción y, sin embargo, implementa código fuera de OpenSpec. Regla: lista blanca. Una skill que no está clasificada no corre en ninguna herramienta, CI falla si hay alguna instalada sin clasificar, y la clasificación deja evidencia (`skills_motivos`). Clasificar cuesta una sesión corta una vez; una skill mal enrutada cuesta en cada uso.

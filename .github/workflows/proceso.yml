@@ -20,6 +20,8 @@ jobs:
           git fetch -q origin "${{ github.base_ref }}"
           printf '%s' "$BODY" > body.txt
           python3 scripts/harness.py proceso --base "origin/${{ github.base_ref }}" --body-file body.txt
+      - name: Skills instaladas clasificadas
+        run: python3 scripts/harness.py skills --check
       - name: Adaptadores al día con harness.json
         run: python3 scripts/harness.py sync --check
       - name: OpenSpec validate

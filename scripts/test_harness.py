@@ -176,7 +176,9 @@ class TestGuardias(unittest.TestCase):
         self.assertEqual(self.c("Skill", {"skill": "bmad-deep-recon"}), 2)
         self.assertEqual(self.c("Skill", {"skill": "bmad-build"}), 2)
         self.assertEqual(self.c("Skill", {"skill": "openspec-apply-change"}), 2)
-        self.assertEqual(self.c("Skill", {"skill": "docx"}), 0)
+        self.assertEqual(self.c("Skill", {"skill": "docx"}), 2, "skill sin mapear se bloquea")
+        self.assertEqual(self.c("Skill", {"skill": "bmad-algo-nuevo"}), 2)
+        self.assertEqual(self.c("SlashCommand", {"command": "/clasificar-skill x"}), 0, "los comandos del harness no se bloquean")
 
     def test_claude_override(self):
         os.environ["HARNESS_OVERRIDE"] = "1"
@@ -207,6 +209,7 @@ class TestGuardias(unittest.TestCase):
         self.assertTrue(self.o("skill", {"name": "bmad-build-auto"}))
         self.assertFalse(self.o("skill", {"name": "bmad-deep-recon"}))
         self.assertFalse(self.o("skill", {"name": "openspec-apply-change"}))
+        self.assertTrue(self.o("skill", {"name": "skill-desconocida"}))
 
 
 class TestHooksGit(unittest.TestCase):
@@ -260,11 +263,35 @@ class TestRutasYSync(unittest.TestCase):
     def tearDown(self):
         self.r.cerrar()
 
-    def test_ruta_por_prefijo(self):
+    def test_sin_mapear_no_enruta_solo_sugiere(self):
         cfg = harness.cargar(self.r.dir)
-        self.assertEqual(harness.ruta_skill(cfg, "bmad-algo-nuevo")["clase"], "redactar")
-        self.assertEqual(harness.ruta_skill(cfg, "openspec-algo-nuevo")["clase"], "decidir")
+        rt = harness.ruta_skill(cfg, "bmad-algo-nuevo")
+        self.assertEqual((rt["clase"], rt["sugerencia"]), ("sin-mapear", "redactar"))
         self.assertEqual(harness.ruta_skill(cfg, "bmad-deep-recon")["herramienta"], "opencode")
+
+    def instalar_skill(self, nombre, cuerpo):
+        self.r.escribir(f".claude/skills/{nombre}/SKILL.md", f"---\nname: {nombre}\ndescription: '{cuerpo[:40]}'\n---\n{cuerpo}\n")
+
+    def test_inventario_analisis_y_clasificacion(self):
+        self.instalar_skill("bmad-nueva", "Implement the story: write code, then git commit and create a pull request.")
+        e = harness.estado_skills(self.r.dir)
+        self.assertEqual(e["sin_mapear"], ["bmad-nueva"])
+        self.assertEqual(sh(["python3", "scripts/harness.py", "skills", "--check"], self.r.dir).returncode, 1)
+        a = harness.analizar_skill(self.r.dir, "bmad-nueva")
+        self.assertTrue(a["encontrada"] and a["senales"]["escribe_codigo"] > 0 and a["senales"]["git"] > 0)
+        self.assertEqual(sh(["python3", "scripts/harness.py", "clasificar", "bmad-nueva", "prohibido", "--motivo", "x"], self.r.dir, {"HARNESS_ROL": "ejecutor"}).returncode, 1)
+        self.assertNotEqual(sh(["python3", "scripts/harness.py", "clasificar", "bmad-nueva", "prohibido"], self.r.dir).returncode, 0, "sin motivo no clasifica")
+        self.assertEqual(sh(["python3", "scripts/harness.py", "clasificar", "bmad-nueva", "prohibido", "--motivo", "implementa y commitea"], self.r.dir).returncode, 0)
+        cfg = harness.cargar(self.r.dir)
+        self.assertEqual(cfg["skills"]["bmad-nueva"], "prohibido")
+        self.assertIn("implementa y commitea", cfg["skills_motivos"]["bmad-nueva"])
+        self.assertEqual(sh(["python3", "scripts/harness.py", "skills", "--check"], self.r.dir).returncode, 0)
+
+    def test_libre_en_ambas(self):
+        self.instalar_skill("docx", "Create Word documents.")
+        sh(["python3", "scripts/harness.py", "clasificar", "docx", "libre", "--motivo", "documentos"], self.r.dir)
+        self.assertEqual(harness.guard_claude({"tool_name": "Skill", "tool_input": {"skill": "docx"}}, self.r.dir)[0], 0)
+        self.assertFalse(harness.guard_opencode("skill", {"name": "docx"}, self.r.dir)["block"])
 
     def test_sync_detecta_deriva(self):
         harness.sync(self.r.dir)

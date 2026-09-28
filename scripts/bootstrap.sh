@@ -16,7 +16,7 @@ copiar() { # copiar <rel> ; no sobrescribe: si ya existe y difiere, deja la vers
 echo "Copiando harness a $DEST"
 for f in HANDOFF.md opencode.json harness.json \
   .claude/settings.json .claude/rules/workflow-routing.md \
-  .claude/commands/descubrir.md .claude/commands/init-harness.md .claude/commands/cambio.md .claude/commands/juzgar-pr.md .claude/commands/handoff.md .claude/commands/ruta.md \
+  .claude/commands/descubrir.md .claude/commands/init-harness.md .claude/commands/cambio.md .claude/commands/juzgar-pr.md .claude/commands/handoff.md .claude/commands/ruta.md .claude/commands/clasificar-skill.md \
   .opencode/agents/explorador.md .opencode/agents/mecanico.md .opencode/agents/contexto-largo.md .opencode/agents/recolector.md \
   .opencode/agents/revisor-gratis.md .opencode/agents/revisor-fuerte.md .opencode/agents/revisor-bmad.md \
   .opencode/commands/ejecutar-cambio.md .opencode/commands/resumir-modulos.md .opencode/commands/recolectar.md .opencode/commands/revisar-artefacto.md .opencode/commands/ruta.md .opencode/commands/handoff.md \

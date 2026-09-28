@@ -45,6 +45,7 @@ Si te piden algo fuera de tu rol, no lo hagas: responde "Esto le corresponde a <
 | Claude Code en una skill `bmad-*` | editar fuera de `_bmad-output/`; correr skills de recolectar/revisar (van a OpenCode) | entregar dossier + nombrar `/cambio` o `/opsx:update <id>` |
 | OpenCode (ejecutor) | editar proposal/design/specs, `openspec/specs/`, `config.yaml`, `_bmad*` (salvo `_bmad-output/digests/`), reglas, CI, `harness.json`; correr skills de decidir/redactar; archivar; mergear; push a main | HANDOFF.md → Claude Code |
 | Revisores | editar, implementar, arreglar | reportar hallazgos → el ejecutor corrige |
+| Cualquiera | usar una skill que no está en `harness.json` | `/clasificar-skill <nombre>` en Claude Code |
 Hay guardias técnicas (hooks y plugin) que bloquean estas acciones aunque se intenten.
 
 ## Método de trabajo propio del equipo (opcional)

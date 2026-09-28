@@ -27,7 +27,8 @@ Cada skill de BMAD y OpenSpec pertenece a una **clase**, y la clase decide herra
 
 - `/ruta <skill>` (o `python3 scripts/harness.py ruta <skill>`) dice dónde va.
 - Las guardias lo imponen: Claude no puede correr skills de recolectar ni revisar; OpenCode no puede correr las de decidir ni redactar; nadie corre las prohibidas.
-- Una skill nueva cae por prefijo (`openspec-` → decidir, `bmad-` → redactar). Si su clase real es otra, añádela a `harness.json` → `skills` y corre `sync`.
+- **Lista blanca:** una skill que no está en `harness.json` se bloquea en ambas herramientas, y CI (`harness.py skills --check`) falla si hay skills instaladas sin mapear. Se clasifica una vez con `/clasificar-skill <nombre>` en Claude Code: `harness.py analizar-skill` extrae los hechos sin LLM (tamaño, referencias, señales de escribir código, revisar, leer mucho), Claude propone clase con citas del SKILL.md, tú confirmas, y `harness.py clasificar` la escribe con su motivo en `skills_motivos`. OpenCode no puede editar `harness.json`, así que no puede autorizarse.
+- Clase `libre` para skills genéricas fuera del método (documentos, utilidades): corren en ambas herramientas.
 - Flujo típico con recolección: OpenCode `/recolectar bmad-deep-recon <tema>` → digest → Claude `bmad-architecture` leyendo solo el digest. Con revisión: Claude escribe el spine → OpenCode `/revisar-artefacto bmad-review <ruta>` → Claude decide qué aplica.
 
 ## 3. Niveles de ceremonia: el costo sigue al tamaño

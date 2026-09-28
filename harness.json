@@ -1,7 +1,11 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "_doc": "Fuente única de datos del harness. La leen scripts/harness.py, los git hooks, el hook de Claude, el plugin de OpenCode y las Actions. Tras editarla: python3 scripts/harness.py sync",
-  "umbrales": { "archivos": 5, "lineas": 300, "trivial_lineas": 20 },
+  "umbrales": {
+    "archivos": 5,
+    "lineas": 300,
+    "trivial_lineas": 20
+  },
   "zonas": {
     "_doc": "Regex sobre rutas relativas. Calibra por ALCANCE DEL DAÑO, no por dominio (docs/LECCIONES.md §11). Las escribe /descubrir.",
     "alto": [
@@ -22,7 +26,26 @@
   },
   "permisos": {
     "_doc": "arquitecto_puede: prefijos que Claude Code puede editar. ejecutor_no_puede: regex que OpenCode no puede editar (tasks.md del change SÍ puede; _bmad-output/digests/ SÍ puede).",
-    "arquitecto_puede": ["docs/", "openspec/", "_bmad-output/", "_bmad/custom/", ".harness/", ".claude/", ".opencode/", ".agents/", ".cursor/", ".github/", ".githooks/", "scripts/", "HANDOFF.md", "AGENTS.md", "CLAUDE.md", "README.md", "opencode.json", "harness.json"],
+    "arquitecto_puede": [
+      "docs/",
+      "openspec/",
+      "_bmad-output/",
+      "_bmad/custom/",
+      ".harness/",
+      ".claude/",
+      ".opencode/",
+      ".agents/",
+      ".cursor/",
+      ".github/",
+      ".githooks/",
+      "scripts/",
+      "HANDOFF.md",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "README.md",
+      "opencode.json",
+      "harness.json"
+    ],
     "ejecutor_no_puede": [
       "^openspec/specs/",
       "^openspec/config\\.yaml$",
@@ -59,29 +82,86 @@
     "redactar": "el modelo mediano de tu plan (/model)"
   },
   "clases": {
-    "decidir":    { "herramienta": "claude",   "modelo": "claude.decidir",  "que": "Decisiones que se vuelven contrato: SPEC, AD-*, propuesta y publicación de specs" },
-    "redactar":   { "herramienta": "claude",   "modelo": "claude.redactar", "que": "Elicitar, redactar y planear sin decidir contrato" },
-    "recolectar": { "herramienta": "opencode", "agente": "recolector",      "que": "Leer mucho y resumir: deja un digest en _bmad-output/digests/ para que Claude decida" },
-    "revisar":    { "herramienta": "opencode", "agente": "revisor-bmad",    "que": "Revisión adversarial de artefactos o cambios con otra familia de modelos" },
-    "ejecutar":   { "herramienta": "opencode", "agente": "build",           "que": "Implementar un change de OpenSpec" },
-    "mecanico":   { "herramienta": "opencode", "agente": "mecanico",        "que": "Tests, docs y trabajo repetitivo" },
-    "prohibido":  { "herramienta": null,                                    "que": "Implementa fuera de OpenSpec y rompe 'BMAD no ejecuta'. Usa /cambio + /ejecutar-cambio." }
+    "decidir": {
+      "herramienta": "claude",
+      "modelo": "claude.decidir",
+      "que": "Decisiones que se vuelven contrato: SPEC, AD-*, propuesta y publicación de specs"
+    },
+    "redactar": {
+      "herramienta": "claude",
+      "modelo": "claude.redactar",
+      "que": "Elicitar, redactar y planear sin decidir contrato"
+    },
+    "recolectar": {
+      "herramienta": "opencode",
+      "agente": "recolector",
+      "que": "Leer mucho y resumir: deja un digest en _bmad-output/digests/ para que Claude decida"
+    },
+    "revisar": {
+      "herramienta": "opencode",
+      "agente": "revisor-bmad",
+      "que": "Revisión adversarial de artefactos o cambios con otra familia de modelos"
+    },
+    "ejecutar": {
+      "herramienta": "opencode",
+      "agente": "build",
+      "que": "Implementar un change de OpenSpec"
+    },
+    "mecanico": {
+      "herramienta": "opencode",
+      "agente": "mecanico",
+      "que": "Tests, docs y trabajo repetitivo"
+    },
+    "prohibido": {
+      "herramienta": null,
+      "que": "Implementa fuera de OpenSpec y rompe 'BMAD no ejecuta'. Usa /cambio + /ejecutar-cambio."
+    },
+    "libre": {
+      "herramienta": "cualquiera",
+      "que": "Skill genérica fuera del método (documentos, utilidades): se permite en ambas herramientas"
+    }
   },
   "skills": {
-    "bmad-architecture": "decidir", "bmad-spec": "decidir", "bmad-prd": "decidir", "bmad-correct-course": "decidir", "bmad-agent-architect": "decidir",
-    "openspec-propose": "decidir", "openspec-archive-change": "decidir", "openspec-sync-specs": "decidir", "openspec-update-change": "decidir",
-    "bmad-help": "redactar", "bmad-product-brief": "redactar", "bmad-forge-idea": "redactar", "bmad-brainstorming": "redactar",
-    "bmad-advanced-elicitation": "redactar", "bmad-agent-pm": "redactar", "bmad-agent-analyst": "redactar", "bmad-ux": "redactar",
-    "bmad-agent-ux-designer": "redactar", "bmad-prfaq": "redactar", "bmad-create-epics-and-stories": "redactar",
-    "bmad-sprint-planning": "redactar", "bmad-retrospective": "redactar", "bmad-party-mode": "redactar",
-    "bmad-project-context": "redactar", "bmad-customize": "redactar", "openspec-explore": "redactar",
+    "bmad-architecture": "decidir",
+    "bmad-spec": "decidir",
+    "bmad-prd": "decidir",
+    "bmad-correct-course": "decidir",
+    "bmad-agent-architect": "decidir",
+    "openspec-propose": "decidir",
+    "openspec-archive-change": "decidir",
+    "openspec-sync-specs": "decidir",
+    "openspec-update-change": "decidir",
+    "bmad-help": "redactar",
+    "bmad-product-brief": "redactar",
+    "bmad-forge-idea": "redactar",
+    "bmad-brainstorming": "redactar",
+    "bmad-advanced-elicitation": "redactar",
+    "bmad-agent-pm": "redactar",
+    "bmad-agent-analyst": "redactar",
+    "bmad-ux": "redactar",
+    "bmad-agent-ux-designer": "redactar",
+    "bmad-prfaq": "redactar",
+    "bmad-create-epics-and-stories": "redactar",
+    "bmad-sprint-planning": "redactar",
+    "bmad-retrospective": "redactar",
+    "bmad-party-mode": "redactar",
+    "bmad-project-context": "redactar",
+    "bmad-customize": "redactar",
+    "openspec-explore": "redactar",
     "bmad-deep-recon": "recolectar",
-    "bmad-review": "revisar", "bmad-code-review": "revisar", "bmad-walkthrough": "revisar",
+    "bmad-review": "revisar",
+    "bmad-code-review": "revisar",
+    "bmad-walkthrough": "revisar",
     "openspec-apply-change": "ejecutar",
     "bmad-qa-generate-e2e-tests": "mecanico",
-    "bmad-build": "prohibido", "bmad-build-auto": "prohibido", "bmad-agent-dev": "prohibido"
+    "bmad-build": "prohibido",
+    "bmad-build-auto": "prohibido",
+    "bmad-agent-dev": "prohibido"
   },
-  "skills_por_prefijo": { "openspec-": "decidir", "bmad-": "redactar" },
+  "skills_por_prefijo": {
+    "openspec-": "decidir",
+    "bmad-": "redactar"
+  },
   "niveles": {
     "0": "Directo: ≤ trivial_lineas y riesgo bajo. Rama fix/<slug>, sin change, sin issue, solo CI.",
     "1": "Ligero: una capacidad, riesgo bajo o medio. Change (proposal + tasks), rama feat/<id>, sin issue, Revisión 1, Claude propone y juzga en una sesión.",
@@ -89,9 +169,28 @@
     "3": "Completo: iniciativa nueva o riesgo alto. BMAD antes, change, issue y las tres revisiones."
   },
   "placeholders": [
-    { "file": "AGENTS.md", "marker": "<", "descripcion": "proyecto, stack, comandos, puntos de entrada, rutas prohibidas" },
-    { "file": "harness.json", "marker": "REEMPLAZA-CON-ID", "descripcion": "IDs de modelo de OmniRoute (combo revisor y DeepSeek V4)" },
-    { "file": "openspec/config.yaml", "marker": "<qué es", "descripcion": "context del proyecto (lo siembra el primer change o /init-harness)" },
-    { "file": ".github/workflows/ci.yml", "marker": "Reemplaza este paso", "descripcion": "instalar + lint + tests del stack" }
-  ]
+    {
+      "file": "AGENTS.md",
+      "marker": "<",
+      "descripcion": "proyecto, stack, comandos, puntos de entrada, rutas prohibidas"
+    },
+    {
+      "file": "harness.json",
+      "marker": "REEMPLAZA-CON-ID",
+      "descripcion": "IDs de modelo de OmniRoute (combo revisor y DeepSeek V4)"
+    },
+    {
+      "file": "openspec/config.yaml",
+      "marker": "<qué es",
+      "descripcion": "context del proyecto (lo siembra el primer change o /init-harness)"
+    },
+    {
+      "file": ".github/workflows/ci.yml",
+      "marker": "Reemplaza este paso",
+      "descripcion": "instalar + lint + tests del stack"
+    }
+  ],
+  "skills_libres_doc": "Las skills no listadas en 'skills' se BLOQUEAN en ambas herramientas hasta clasificarlas con /clasificar-skill en Claude Code.",
+  "skills_por_prefijo_doc": "Solo sugerencia para analizar-skill; NO enruta.",
+  "skills_motivos": {}
 }

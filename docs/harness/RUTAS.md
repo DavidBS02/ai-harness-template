@@ -15,6 +15,7 @@ Cada skill de BMAD y OpenSpec pertenece a una clase; la clase decide herramienta
 | ejecutar | opencode | `build` · `opencode-go/glm-5.3` | Implementar un change de OpenSpec |
 | mecanico | opencode | `mecanico` · `opencode-go/glm-5.3-flash` | Tests, docs y trabajo repetitivo |
 | prohibido | — (bloqueada) | — | Implementa fuera de OpenSpec y rompe 'BMAD no ejecuta'. Usa /cambio + /ejecutar-cambio. |
+| libre | cualquiera | — | Skill genérica fuera del método (documentos, utilidades): se permite en ambas herramientas |
 
 ## Skills
 | Skill | Clase |
@@ -55,7 +56,7 @@ Cada skill de BMAD y OpenSpec pertenece a una clase; la clase decide herramienta
 | `bmad-review` | revisar |
 | `bmad-walkthrough` | revisar |
 
-Skills no listadas: prefijo `openspec-` → decidir, prefijo `bmad-` → redactar; el resto → redactar.
+**Skills no listadas: bloqueadas en ambas herramientas** hasta clasificarlas con `/clasificar-skill <nombre>` en Claude Code.
 
 ## Niveles de ceremonia
 | Nivel | Qué lleva |

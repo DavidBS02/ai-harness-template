@@ -49,7 +49,7 @@ Claude   /juzgar-pr <n>            Luna si alto · checklist de archive · /opsx
 
 BMAD entra antes, cuando el pedido es de producto o arquitectura, y **no ejecuta nada**: entrega un dossier y nombra el `/cambio` o el `/opsx:update` que lo aplica.
 
-**Niveles de ceremonia** (el costo sigue al tamaño): 0 directo (`fix/`, solo CI) · 1 ligero (change mínimo, una pasada de Claude) · 2 estándar · 3 completo (BMAD + tres revisiones). **Cada skill de BMAD y OpenSpec tiene su herramienta y su modelo** según su clase (decidir, redactar, recolectar, revisar, ejecutar, mecánico, prohibido): `/ruta <skill>` lo dice y las guardias lo imponen. Tabla en `docs/harness/RUTAS.md`.
+**Niveles de ceremonia** (el costo sigue al tamaño): 0 directo (`fix/`, solo CI) · 1 ligero (change mínimo, una pasada de Claude) · 2 estándar · 3 completo (BMAD + tres revisiones). **Cada skill de BMAD y OpenSpec tiene su herramienta y su modelo** según su clase (decidir, redactar, recolectar, revisar, ejecutar, mecánico, prohibido): `/ruta <skill>` lo dice y las guardias lo imponen. Tabla en `docs/harness/RUTAS.md`. **Lista blanca:** una skill nueva sin clasificar se bloquea en ambas herramientas (y CI falla) hasta que la clasificas con `/clasificar-skill <nombre>` en Claude Code.
 
 ## Un motor, un archivo de datos
 
@@ -63,7 +63,7 @@ AGENTS.md                    reglas del repo (fuente única; incluye "Puntos de 
 CLAUDE.md                    @AGENTS.md + @.claude/rules/workflow-routing.md + guardia de rol
 HANDOFF.md                   estado vivo de la rama
 .claude/rules/               workflow-routing.md (corta, siempre cargada)
-.claude/commands/            /descubrir /init-harness /cambio /juzgar-pr /ruta /handoff
+.claude/commands/            /descubrir /init-harness /cambio /juzgar-pr /ruta /clasificar-skill /handoff
 .claude/settings.json        hook de guardia de Claude Code
 .opencode/agents/            explorador, mecanico, contexto-largo, recolector, revisor-gratis, revisor-fuerte, revisor-bmad
 .opencode/commands/          /ejecutar-cambio /recolectar /revisar-artefacto /resumir-modulos /ruta /handoff

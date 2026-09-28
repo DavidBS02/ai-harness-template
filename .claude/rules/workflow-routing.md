@@ -17,6 +17,9 @@
 ## BMAD no ejecuta NADA (regla dura)
 Entrega un **dossier**, no un diff. No escribe código ni config, no crea ramas ni commits, no marca tareas, no aplica sus recomendaciones. Solo escribe en `_bmad-output/`. Toda sesión BMAD termina nombrando el comando que la aplica (`/cambio`, `/opsx:update <id>`). `bmad-build`, `bmad-build-auto` y `bmad-agent-dev` están bloqueadas: implementar es `/ejecutar-cambio`.
 
+## Skills nuevas: lista blanca
+Toda skill que no esté en `harness.json` está **bloqueada en ambas herramientas**. Se clasifica una vez, en Claude Code, con `/clasificar-skill <nombre>` (hechos con `harness.py analizar-skill`, propuesta con evidencia, confirmación del usuario). OpenCode no puede clasificar.
+
 ## Tokens de BMAD
 Una sesión por workflow (`/clear` antes). Modelo mediano para redactar, el más capaz solo para decidir. Lectura masiva y reviews → OpenCode. Carga solo los AD-* y CAP-* que tocan.
 

@@ -9,6 +9,9 @@ Uso:
   harness.py cambio id|issue|propuesta|riesgo|nivel|roja
   harness.py nivel [base]               nivel efectivo y requisitos (JSON)
   harness.py ruta <skill>               a qué herramienta/agente/modelo va una skill
+  harness.py skills [--check]           skills instaladas en el repo y cuáles están sin mapear
+  harness.py analizar-skill <skill>     hechos de una skill (sin LLM) para clasificarla
+  harness.py clasificar <skill> <clase> --motivo "..."   escribe la clase en harness.json (solo arquitecto)
   harness.py proceso --base B --body-file F   verificación del PR (lo usa la Action)
   harness.py guard-claude               hook PreToolUse de Claude Code (JSON por stdin)
   harness.py guard-opencode             guardia del plugin de OpenCode (JSON por stdin)
@@ -214,16 +217,12 @@ def verificar_proceso(root, base, body):
 # ----------------------------------------------------------------------------- rutas por skill
 
 def ruta_skill(cfg, skill):
-    skills = cfg.get("skills", {})
-    clase = skills.get(skill)
+    clase = cfg.get("skills", {}).get(skill)
+    if not clase:
+        return {"skill": skill, "clase": "sin-mapear", "origen": "no está en harness.json", "herramienta": None, "agente": None,
+                "modelo": None, "sugerencia": sugerencia_prefijo(cfg, skill),
+                "que": f"Skill nueva sin clasificar: se bloquea en ambas herramientas. En Claude Code corre /clasificar-skill {skill}."}
     origen = "harness.json"
-    if not clase:
-        for pref, c in sorted(cfg.get("skills_por_prefijo", {}).items(), key=lambda kv: -len(kv[0])):
-            if skill.startswith(pref):
-                clase, origen = c, f"prefijo '{pref}'"
-                break
-    if not clase:
-        clase, origen = "redactar", "por defecto"
     info = dict(cfg.get("clases", {}).get(clase, {}))
     modelo = None
     if info.get("agente"):
@@ -233,13 +232,32 @@ def ruta_skill(cfg, skill):
     return {"skill": skill, "clase": clase, "origen": origen, "herramienta": info.get("herramienta"), "agente": info.get("agente"), "modelo": modelo, "que": info.get("que", "")}
 
 
-def es_del_metodo(cfg, skill):
-    return skill in cfg.get("skills", {}) or any(skill.startswith(p) for p in cfg.get("skills_por_prefijo", {}))
+def sugerencia_prefijo(cfg, skill):
+    for pref, c in sorted(cfg.get("skills_por_prefijo", {}).items(), key=lambda kv: -len(kv[0])):
+        if skill.startswith(pref):
+            return c
+    return None
+
+
+def puede_correr_en(rt, herramienta):
+    """None si puede; si no, el motivo."""
+    if rt["clase"] == "sin-mapear":
+        return "sin-mapear"
+    if rt["clase"] == "prohibido":
+        return "prohibido"
+    if rt["herramienta"] in ("cualquiera", herramienta):
+        return None
+    return "otra-herramienta"
 
 
 def texto_ruta(rt):
     if rt["clase"] == "prohibido":
         return f"⛔ {rt['skill']}: prohibida. {rt['que']}"
+    if rt["clase"] == "sin-mapear":
+        sug = f" (sugerencia por prefijo: {rt['sugerencia']})" if rt.get("sugerencia") else ""
+        return f"⛔ {rt['skill']}: sin mapear{sug}. {rt['que']}"
+    if rt["herramienta"] == "cualquiera":
+        return f"{rt['skill']} → clase libre → Claude Code u OpenCode\n  {rt['que']}"
     donde = "Claude Code (scripts/arq)" if rt["herramienta"] == "claude" else f"OpenCode (scripts/ejec) · agente {rt['agente']}"
     return f"{rt['skill']} → clase {rt['clase']} ({rt['origen']}) → {donde} · modelo: {rt['modelo']}\n  {rt['que']}"
 
@@ -250,6 +268,77 @@ def nombre_skill(args):
         if isinstance(v, str) and v.strip():
             return v.strip().lstrip("/").split()[0].split(":")[-1] if k == "command" else v.strip()
     return None
+
+
+# ----------------------------------------------------------------------------- inventario, análisis y clasificación de skills
+
+DIRS_SKILLS = [".claude/skills", ".agents/skills", ".opencode/skills", ".cursor/skills"]
+
+SENALES = {
+    "escribe_codigo": r"\b(implement|write code|writes? (the )?code|edit(s|ing)? (files|code)|apply (the )?changes?|refactor|fix(es)? (the )?bug|produc(e|es) (a )?diff)\b|implementa|escribe código",
+    "git": r"\bgit (commit|push|checkout|branch)|\bcreate (a )?(branch|commit|pull request|PR)\b|gh pr",
+    "revisa": r"\b(review|adversarial|critique|audit|lens(es)?|edge[- ]case)\b|revisi[oó]n",
+    "lee_mucho": r"\b(research|recon|scan|investigat|explore the (repo|codebase)|read (the )?(entire|whole))\b|investiga",
+    "decide_contrato": r"\b(architecture|PRD|spec(ification)?|decision record|ADR|scope)\b|arquitectura",
+    "redacta": r"\b(brief|brainstorm|elicit|draft|story|stories|epic|persona|ux)\b",
+    "tests": r"\b(test(s|ing)?|e2e|playwright|coverage)\b",
+}
+
+
+def skills_instaladas(root):
+    vistas = {}
+    for d in DIRS_SKILLS:
+        base = Path(root) / d
+        if base.is_dir():
+            for s in sorted(base.iterdir()):
+                if (s / "SKILL.md").exists():
+                    vistas.setdefault(s.name, []).append(str((s / "SKILL.md").relative_to(root)))
+    return vistas
+
+
+def estado_skills(root):
+    cfg = cargar(root)
+    inst = skills_instaladas(root)
+    mapeadas = cfg.get("skills", {})
+    return {"instaladas": inst, "sin_mapear": sorted(s for s in inst if s not in mapeadas),
+            "mapeadas_no_instaladas": sorted(s for s in mapeadas if s not in inst)}
+
+
+def analizar_skill(root, skill):
+    cfg = cargar(root)
+    inst = skills_instaladas(root).get(skill, [])
+    if not inst:
+        return {"skill": skill, "encontrada": False, "buscada_en": DIRS_SKILLS}
+    principal = Path(root) / inst[0]
+    texto = principal.read_text(encoding="utf-8", errors="replace")
+    refs = sorted(set(re.findall(r"[\w{}./-]+\.(?:md|py|csv|yaml|toml)", texto)))
+    extra = ""
+    for r in refs:
+        p = (principal.parent / r) if not r.startswith("{") else None
+        if p and p.exists() and p.stat().st_size < 200_000:
+            extra += "\n" + p.read_text(encoding="utf-8", errors="replace")
+    todo = texto + extra
+    fm = re.search(r"(?s)^---\n(.*?)\n---", texto)
+    desc = re.search(r"(?m)^description:\s*(.+)$", fm.group(1)).group(1).strip("'\" ") if fm and re.search(r"(?m)^description:", fm.group(1)) else ""
+    senales = {k: len(re.findall(v, todo, re.I)) for k, v in SENALES.items()}
+    return {"skill": skill, "encontrada": True, "archivos": inst, "descripcion": desc,
+            "tamano_bytes": len(todo.encode()), "tokens_aprox": len(todo) // 4, "referencias": refs,
+            "usa_render_bmad": "render_skill.py" in texto, "senales": senales,
+            "sugerencia_prefijo": sugerencia_prefijo(cfg, skill), "clases_validas": sorted(k for k in cfg.get("clases", {}) if not k.startswith("_"))}
+
+
+def clasificar(root, skill, clase, motivo):
+    p = Path(root) / "harness.json"
+    cfg = json.loads(p.read_text(encoding="utf-8"))
+    if clase not in cfg.get("clases", {}):
+        raise SystemExit(f"clase '{clase}' no existe; válidas: {', '.join(k for k in cfg['clases'] if not k.startswith('_'))}")
+    if not motivo:
+        raise SystemExit("--motivo es obligatorio: deja la evidencia de por qué esa clase")
+    cfg.setdefault("skills", {})[skill] = clase
+    from datetime import date
+    cfg.setdefault("skills_motivos", {})[skill] = f"{date.today().isoformat()} · {clase} · {motivo}"
+    p.write_text(json.dumps(cfg, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return cfg["skills_motivos"][skill]
 
 
 # ----------------------------------------------------------------------------- guardias
@@ -316,15 +405,12 @@ def guard_claude(data, root=None):
             if not ok:
                 return bloqueo(rel)
         return 0, ""
-    if tool in ("Skill", "SlashCommand"):
+    if tool == "Skill":
         skill = nombre_skill(ti)
         if not skill:
             return 0, ""
-        cfg = cargar(root)
-        if not es_del_metodo(cfg, skill):
-            return 0, ""
-        rt = ruta_skill(cfg, skill)
-        if rt["clase"] == "prohibido" or rt["herramienta"] != "claude":
+        rt = ruta_skill(cargar(root), skill)
+        if puede_correr_en(rt, "claude"):
             return 2, (f"⛔ Harness — enrutamiento de skills: `{skill}` no se corre en Claude Code.\n{texto_ruta(rt)}\n"
                        f"Explícale esto al usuario y dile exactamente dónde correrla. Tabla completa: docs/harness/RUTAS.md")
     return 0, ""
@@ -362,9 +448,12 @@ def guard_opencode(tool, args, root=None):
             return bloqueo("no se hace push a main.", "haz push de tu rama y marca el PR listo con gh pr ready.")
     elif t == "skill":
         skill = nombre_skill(args)
-        if skill and es_del_metodo(cfg, skill):
+        if skill:
             rt = ruta_skill(cfg, skill)
-            if rt["clase"] == "prohibido" or rt["herramienta"] == "claude":
+            motivo = puede_correr_en(rt, "opencode")
+            if motivo == "sin-mapear":
+                return bloqueo(f"la skill `{skill}` no está clasificada en harness.json.", f"pide al usuario que en Claude Code corra /clasificar-skill {skill}; OpenCode no puede clasificarla.")
+            if motivo:
                 return bloqueo(f"la skill `{skill}` no se corre en OpenCode.", texto_ruta(rt) + " · Tabla: docs/harness/RUTAS.md")
     return {"block": False, "msg": ""}
 
@@ -438,7 +527,7 @@ def generar_rutas(cfg):
     L += ["", "## Skills", "| Skill | Clase |", "|---|---|"]
     for s, c in sorted(cfg.get("skills", {}).items(), key=lambda kv: (kv[1], kv[0])):
         L.append(f"| `{s}` | {c} |")
-    L += ["", "Skills no listadas: " + ", ".join(f"prefijo `{p}` → {c}" for p, c in cfg.get("skills_por_prefijo", {}).items()) + "; el resto → redactar.", "",
+    L += ["", "**Skills no listadas: bloqueadas en ambas herramientas** hasta clasificarlas con `/clasificar-skill <nombre>` en Claude Code.", "",
           "## Niveles de ceremonia", "| Nivel | Qué lleva |", "|---|---|"]
     for n, d in sorted(cfg.get("niveles", {}).items()):
         L.append(f"| {n} | {d} |")
@@ -453,7 +542,11 @@ def sync(root, check=False):
     root = Path(root)
     cfg = cargar(root)
     salidas = {}
-    salidas[root / "docs/harness/RUTAS.md"] = generar_rutas(cfg)
+    rutas = generar_rutas(cfg)
+    sm = estado_skills(root)["sin_mapear"]
+    if sm:
+        rutas += "\n## ⛔ Instaladas y sin mapear (bloqueadas)\n" + "\n".join(f"- `{s}` → `/clasificar-skill {s}`" for s in sm) + "\n"
+    salidas[root / "docs/harness/RUTAS.md"] = rutas
     agentes = {k: v for k, v in cfg.get("agentes", {}).items() if not k.startswith("_")}
     for agente, modelo in agentes.items():
         p = root / ".opencode/agents" / f"{agente}.md"
@@ -552,6 +645,31 @@ def main(argv):
             print("uso: harness.py ruta <skill>")
             return 2
         print(texto_ruta(ruta_skill(cargar(root), args[0])))
+        return 0
+    if cmd == "skills":
+        e = estado_skills(root)
+        print(f"instaladas: {len(e['instaladas'])} · sin mapear: {len(e['sin_mapear'])} · mapeadas y no instaladas: {len(e['mapeadas_no_instaladas'])}")
+        for s in e["sin_mapear"]:
+            print(f"⛔ sin mapear: {s}  →  en Claude Code: /clasificar-skill {s}")
+        if "--check" in args:
+            return 1 if e["sin_mapear"] else 0
+        return 0
+    if cmd == "analizar-skill":
+        if not args:
+            print("uso: harness.py analizar-skill <skill>")
+            return 2
+        print(json.dumps(analizar_skill(root, args[0]), ensure_ascii=False, indent=2))
+        return 0
+    if cmd == "clasificar":
+        if len(args) < 2:
+            print('uso: harness.py clasificar <skill> <clase> --motivo "..."')
+            return 2
+        if os.environ.get("HARNESS_ROL") == "ejecutor":
+            sys.stderr.write("⛔ Solo el arquitecto (Claude Code) clasifica skills.\n")
+            return 1
+        motivo = args[args.index("--motivo") + 1] if "--motivo" in args else ""
+        print("clasificada:", args[0], "·", clasificar(root, args[0], args[1], motivo))
+        print("\n".join(sync(root)) or "adaptadores al día")
         return 0
     if cmd == "proceso":
         base = args[args.index("--base") + 1] if "--base" in args else "main"

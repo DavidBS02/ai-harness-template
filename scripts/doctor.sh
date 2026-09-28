@@ -21,6 +21,7 @@ if [ -d _bmad-output ] && git check-ignore -q _bmad-output 2>/dev/null; then war
 echo "Harness:"
 python3 -c "import json;json.load(open('harness.json'))" 2>/dev/null && ok "harness.json válido" || ko "harness.json inválido o ausente"
 python3 scripts/harness.py sync --check >/dev/null 2>&1 && ok "adaptadores al día con harness.json" || warn "adaptadores desactualizados: python3 scripts/harness.py sync"
+SM=$(python3 scripts/harness.py skills 2>/dev/null | grep -c "sin mapear:" || true); [ "$SM" = "0" ] && ok "todas las skills instaladas están clasificadas" || ko "$SM skill(s) sin mapear (bloqueadas): python3 scripts/harness.py skills → /clasificar-skill <nombre> en Claude Code"
 for f in .githooks/pre-commit scripts/harness.py scripts/arq scripts/ejec; do [ -x "$f" ] || ko "$f no es ejecutable (chmod +x; y en git: git update-index --chmod=+x $f)"; done
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_*.py' >/dev/null 2>&1 && ok "selftest del harness en verde" || ko "selftest del harness falla: python3 -m unittest discover -s scripts -p 'test_*.py' -v"
 echo "Guardias:"
