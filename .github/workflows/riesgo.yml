@@ -1,0 +1,36 @@
+name: riesgo
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  pull-requests: write
+  contents: read
+jobs:
+  clasificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: r
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          NIVEL=$(scripts/riesgo.sh origin/${{ github.base_ref }} 2>detalle.txt)
+          echo "nivel=$NIVEL" >> "$GITHUB_OUTPUT"
+          { echo "detalle<<EOF"; cat detalle.txt; echo "EOF"; } >> "$GITHUB_OUTPUT"
+      - uses: actions/github-script@v7
+        env:
+          NIVEL: ${{ steps.r.outputs.nivel }}
+          DETALLE: ${{ steps.r.outputs.detalle }}
+        with:
+          script: |
+            const n = process.env.NIVEL, d = process.env.DETALLE;
+            const req = { bajo: '@revisor-gratis + CI',
+                          medio: '@revisor-gratis + @revisor-fuerte + CI',
+                          alto: '@revisor-gratis + @revisor-fuerte + /codex:review (Luna) + lectura humana + CI' }[n];
+            const { owner, repo } = context.repo, issue_number = context.issue.number;
+            for (const l of ['riesgo:bajo','riesgo:medio','riesgo:alto']) {
+              try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: l }); } catch {}
+            }
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [`riesgo:${n}`] });
+            await github.rest.issues.createComment({ owner, repo, issue_number,
+              body: `**Riesgo: ${n}** — revisiones requeridas: ${req}\n\n<details><summary>detalle</summary>\n\n\`\`\`\n${d}\n\`\`\`\n</details>` });
