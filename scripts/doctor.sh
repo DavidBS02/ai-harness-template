@@ -10,6 +10,14 @@ gh auth status >/dev/null 2>&1 && ok "gh autenticado" || ko "gh: ejecuta gh auth
 [ -n "${ANTHROPIC_BASE_URL:-}" ] && warn "ANTHROPIC_BASE_URL está definida: Claude Code NO debe pasar por proxies." || ok "sin ANTHROPIC_BASE_URL"
 curl -s -m 2 http://localhost:20128/v1/models >/dev/null 2>&1 && ok "OmniRoute respondiendo en :20128" || warn "OmniRoute no responde en :20128 (ejecuta: omniroute)"
 [ -n "${OMNIROUTE_API_KEY:-}" ] && ok "OMNIROUTE_API_KEY definida" || warn "OMNIROUTE_API_KEY no definida (la usa opencode.json)"
+echo "Método (BMAD + OpenSpec):"
+[ -d openspec ] && ok "OpenSpec instalado" || warn "OpenSpec no instalado: bash scripts/instalar-frameworks.sh"
+[ -d _bmad ] && ok "BMAD instalado" || warn "BMAD no instalado: bash scripts/instalar-frameworks.sh"
+if [ -f package.json ] && [ -d openspec ]; then grep -q '"@fission-ai/openspec": "[0-9]' package.json && ok "OpenSpec fijado como devDependency" || warn "OpenSpec sin versión fija en package.json (validate/archive son contrato: fíjala)"; fi
+[ -f openspec/config.yaml ] && { grep -q '## Harness' openspec/config.yaml && ok "config.yaml con reglas [harness]" || warn "openspec/config.yaml sin reglas del harness: /init-harness"; }
+if [ -d openspec ]; then (npx --no-install openspec validate --all >/dev/null 2>&1 || npx --yes @fission-ai/openspec validate --all >/dev/null 2>&1) && ok "openspec validate --all" || ko "openspec validate --all falla"; fi
+if [ -d _bmad-output ] && git check-ignore -q _bmad-output 2>/dev/null; then warn "_bmad-output/ está en .gitignore: OpenCode no verá el SPEC/spine en su worktree (docs/LECCIONES.md §9)"; fi
+[ -f .claude/rules/workflow-routing.md ] && [ "$(wc -l < .claude/rules/workflow-routing.md)" -gt 120 ] && warn "workflow-routing.md tiene más de 120 líneas: mueve el estado a docs/ESTADO.md (docs/LECCIONES.md §8)"
 echo "Guardias:"
 [ "$(git config core.hooksPath)" = ".githooks" ] && ok "git hooks activos" || ko "git hooks inactivos: git config core.hooksPath .githooks"
 [ -f .claude/settings.json ] && grep -q guardia_claude .claude/settings.json && ok "hook de Claude Code configurado" || ko "falta .claude/settings.json con el hook"
@@ -20,4 +28,4 @@ echo "Placeholders pendientes:"
 P=0; for f in AGENTS.md opencode.json .opencode/agents/revisor-gratis.md .opencode/agents/revisor-fuerte.md .github/workflows/ci.yml; do
   [ -f "$f" ] && grep -Eq 'REEMPLAZA-CON-ID|<una línea>|<comando>|Reemplaza este paso' "$f" && { warn "$f tiene placeholders"; P=1; }; done
 [ $P -eq 0 ] && ok "sin placeholders"
-echo "Ejecuta 'claude' y luego /init-harness para llenar lo que falte."
+echo "Ejecuta scripts/arq y luego /descubrir (o /init-harness) para llenar lo que falte."

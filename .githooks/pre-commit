@@ -11,15 +11,15 @@ case "$ROL" in
   arquitecto)
     while IFS= read -r f; do
       coincide_prefijo "$f" .harness/permisos-arquitecto.txt || \
-        rechazo "Claude (arquitecto) intenta commitear código de la app: $f" "especifica el cambio con /spec y ejecútalo en OpenCode (scripts/ejec → /ejecutar-spec)."
+        rechazo "Claude (arquitecto) intenta commitear código de la app: $f" "abre el change con /cambio y ejecútalo en OpenCode (scripts/ejec → /ejecutar-cambio <id>)."
     done <<< "$STAGED" ;;
   ejecutor)
-    case "$RAMA" in main|master) rechazo "OpenCode no commitea en $RAMA." "trabaja en el worktree de la rama feat/<issue>-<slug> que creó /spec.";; esac
+    case "$RAMA" in main|master) rechazo "OpenCode no commitea en $RAMA." "trabaja en el worktree de la rama feat/<issue>-<id> que creó /cambio.";; esac
     while IFS= read -r f; do
-      coincide_prefijo "$f" .harness/protegidas-ejecutor.txt && \
-        rechazo "OpenCode (ejecutor) intenta commitear un artefacto del arquitecto: $f" "deja la propuesta en HANDOFF.md para que Claude la resuelva."
+      coincide_regex "$f" .harness/protegidas-ejecutor.txt && \
+        rechazo "OpenCode (ejecutor) intenta commitear un artefacto del arquitecto: $f" "solo código y openspec/changes/<id>/tasks.md; deja la propuesta en HANDOFF.md para /opsx:update en Claude Code."
       if es_zona_roja "$f" && ! spec_autoriza_roja; then
-        rechazo "zona roja sin autorización en el spec: $f" "Claude debe añadir 'OpenCode-zona-roja: autorizado' al spec de esta rama, o implementarlo él."
+        rechazo "zona roja sin autorización en el proposal: $f" "Claude debe poner 'OpenCode-zona-roja: autorizado' en ## Harness del proposal (con pasos cerrados), o implementarlo él."
       fi
     done <<< "$STAGED" ;;
 esac

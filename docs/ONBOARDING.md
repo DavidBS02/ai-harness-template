@@ -46,28 +46,36 @@ git remote add origin git@github.com:<usuario>/<repo>.git && git push -u origin 
 bash scripts/github-setup.sh     # labels riesgo:* + protección de main
 ```
 
-## 6. Fase 0: descubrimiento y routing
+## 6. Método: BMAD + OpenSpec
+```bash
+bash scripts/instalar-frameworks.sh     # no toca _bmad/ ni openspec/ si ya existen
+```
+Instala OpenSpec (fijado como devDependency si hay package.json) para `claude`, `opencode` y `codex`, y BMAD (`core` + `bmm`, español, salida en `_bmad-output/`) para `claude-code`, `codex` y `opencode` si el instalador la acepta. Si el repo ya los tenía (caso A de /descubrir), no reinstala nada: `/init-harness` fusiona las reglas del harness con tu `openspec/config.yaml`.
+
+## 7. Fase 0: descubrimiento y routing
 ```bash
 bash scripts/doctor.sh
-claude
+scripts/arq
 > /descubrir            # se detendrá pidiendo resúmenes si el repo tiene código
 # en otra terminal, en el mismo repo:
-opencode
+scripts/ejec
 > /resumir-modulos
 # de vuelta en Claude Code:
 > /descubrir            # continúa: MAPA.md, rutas de riesgo, DELEGACION.md, init-harness
 ```
 Confirma con Claude la tabla de zonas (roja/amarilla/verde) cuando te la muestre; es la decisión más importante del setup.
 
-## 7. Prueba de humo (una feature pequeña, riesgo bajo)
-1. Claude Code: `/spec "agregar un endpoint /health"`.
-2. OpenCode (en el worktree): `/ejecutar-spec <issue>`.
-3. Revisa que el PR tenga la etiqueta `riesgo:bajo` y el comentario de la Action.
-4. Claude Code: `/juzgar-pr <número>`.
-Si esto funciona, el harness está operativo.
+## 8. Prueba de humo (un change pequeño, riesgo bajo)
+1. Claude Code: `/cambio "agregar un endpoint /health"` → issue + rama `feat/<n>-add-health-endpoint` + change de OpenSpec + PR draft.
+2. OpenCode: `cd ../wt-add-health-endpoint && scripts/ejec` → `/ejecutar-cambio add-health-endpoint`.
+3. En el PR: etiqueta `riesgo:bajo`, comentario de la Action y checks `test`, `clasificar`, `verificar` en verde.
+4. Claude Code: `/juzgar-pr <número>` → archive + `docs/ESTADO.md` + merge.
+5. Comprueba la guardia: pídele a Claude que edite un archivo de código (debe negarse y redirigir) y a OpenCode que edite `proposal.md` (debe bloquearse).
+Si todo esto funciona, el harness está operativo.
 
 ## Checklist final
 - [ ] `doctor.sh` sin ✗ y sin placeholders
 - [ ] `main` protegida
 - [ ] Prueba de humo mergeada
-- [ ] Tu framework de trabajo conectado (docs/INTEGRACION-FRAMEWORK.md)
+- [ ] `openspec/config.yaml` con reglas `[harness]` y `context` sembrado
+- [ ] Estado del proyecto en `docs/ESTADO.md`, reglas siempre cargadas cortas

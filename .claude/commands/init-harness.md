@@ -1,17 +1,16 @@
-Vas a adaptar este harness de copilotos al repo actual. Si aún no corriste /descubrir, hazlo primero: ese comando entiende el proyecto y decide el routing; este solo aplica la configuración. No implementes features. Sigue estos pasos y ve confirmando conmigo en los puntos marcados.
+Vas a aplicar la configuración del harness al repo actual. Si aún no corriste /descubrir, hazlo primero: ese comando entiende el proyecto y decide el routing; este solo aplica. No implementes features.
 
-1. Diagnóstico. Lee harness.json. Determina si el repo es VERDE (sin código de aplicación) o EXISTENTE. Si es existente, detecta el stack leyendo package.json, pyproject.toml, go.mod, Cargo.toml, pom.xml, Gemfile, composer.json, Makefile, Dockerfile y la estructura de carpetas. Resume en 5 líneas: stack, cómo se instala, cómo se prueba, cómo se lintea, cómo se despliega. Si algo no está claro, pregúntame. [CONFIRMAR]
+0. **Entrantes.** Si existe `.harness/entrantes/`, el bootstrap encontró archivos que el repo ya tenía (por ejemplo, su propio `workflow-routing.md` o `harness-guide.md`) y dejó ahí la versión del harness. Fusiona cada uno con el del repo: **conserva todo lo propio** (lecciones, convenciones, decisiones) y añade lo del harness que falte (roles por herramienta, GitHub, guardias, riesgo). Cuando termines, borra `.harness/entrantes/`. [CONFIRMAR CONMIGO la fusión de cada archivo]
 
-2. Si es VERDE: pregúntame stack, si habrá datos personales o pagos, y cómo quiero probar. Con eso crea un esqueleto mínimo (solo lo necesario para que `install` y `test` corran en CI).
-
-3. AGENTS.md: reemplaza los placeholders `<...>` con lo real. Añade la lista "No tocar" con rutas sensibles reales (auth, pagos, migraciones, infra, secretos). Mantén el archivo corto: reglas, no prosa.
-
-4. Routing: asegúrate de que `.harness/rutas-alto.txt` y `rutas-bajo.txt` reflejen la lista "No tocar" (si ya corriste /descubrir, ya están; si no, edítalas). Prueba con `bash scripts/riesgo.sh` y muéstrame la salida.
-
-5. .github/workflows/ci.yml: reemplaza el paso de ejemplo con instalar + lint + test reales del stack. El job debe llamarse `test` (github-setup.sh lo exige como check).
-
-6. Placeholders de modelo: NO los inventes. Lista los que quedan (`grep -rn REEMPLAZA-CON-ID .opencode opencode.json`) y dime exactamente qué ID pegar en cada uno y de dónde sacarlo (OmniRoute → Combos / Providers).
-
-7. Si es EXISTENTE: propone 3 primeros specs candidatos a partir de TODOs, issues abiertos (`gh issue list`) o deuda evidente, cada uno con su riesgo estimado. No los crees todavía. [CONFIRMAR]
-
-8. Commit: `chore: init harness de copilotos`. Termina con un checklist de lo que queda manual (logins, IDs de modelo, protección de main).
+1. **openspec/config.yaml.** Fusiónalo con `.harness/openspec-config.base.yaml`:
+   - Si el repo ya tiene `context`, consérvalo **intacto**. Si está vacío, siémbralo desde el SPEC, el spine y MAPA.md (producto, stack, capas, AD-*, convenciones, "nunca entra al repo").
+   - En `rules` y `operations`, conserva las reglas existentes y añade las marcadas `[harness]` que falten (sección `## Harness` del proposal, tareas marcadas por el ejecutor, cierre en el runtime real, archive con ESTADO.md). No dupliques reglas equivalentes.
+   - Verifica con `npx openspec validate --all` y que `npx openspec instructions proposal` muestre la regla `## Harness`.
+2. **AGENTS.md.** Reemplaza los placeholders `<...>` con lo real, incluidas la tabla "Puntos de entrada" (qué hace falta para que un cambio llegue al runtime), la lista "No tocar" (= zona roja) y "Nunca entra al repo". Mantenlo corto: reglas, no prosa. Si el repo ya tenía instrucciones en otro sitio (CLAUDE.md largo, `.cursor/rules`), deja una sola fuente: AGENTS.md para reglas del repo y `.claude/rules/workflow-routing.md` para el método.
+3. **Estado del proyecto.** Si alguna regla que se carga siempre contiene el estado del proyecto, deudas o cifras (por ejemplo, una sección "Estado actual" dentro de `workflow-routing.md`), **muévela** a `docs/ESTADO.md` con su estructura (changes, verificaciones diferidas, deudas con archivo dueño, decisiones vigentes) y deja la regla corta (`docs/LECCIONES.md` §8). Elimina datos personales o cifras reales de todo lo versionado. [CONFIRMAR CONMIGO antes de mover]
+4. **Lecciones.** Si el repo tiene lecciones propias (en su harness-guide o sus reglas), llévalas a `docs/LECCIONES.md` con su origen, sin duplicar las que ya están.
+5. **Routing.** Confirma que `.harness/rutas-alto.txt` y `rutas-bajo.txt` reflejan la zona roja. Prueba `bash scripts/riesgo.sh`.
+6. **CI.** En `.github/workflows/ci.yml`, reemplaza el paso de ejemplo con instalar + lint + test reales. El job debe llamarse `test`.
+7. **`_bmad-output/`.** Si está en `.gitignore`, propón versionar al menos los artefactos de contrato (SPEC y spine), porque OpenCode trabaja en worktrees y no ve lo ignorado (`docs/LECCIONES.md` §9). [CONFIRMAR CONMIGO]
+8. **Placeholders de modelo.** NO los inventes. Lista los que quedan (`grep -rn REEMPLAZA-CON-ID .opencode opencode.json`) y dime qué ID pegar en cada uno y de dónde sacarlo (OmniRoute → Combos / Providers).
+9. Commit `chore: init harness de copilotos` en la rama de trabajo. Cierra con un checklist de lo que queda manual (logins, IDs de modelo, protección de main).

@@ -1,9 +1,10 @@
 ---
-name: Feature
-about: Idea que Claude Code convertirá en spec
+name: Cambio
+about: Idea que Claude Code convertirá en un change de OpenSpec con /cambio
 labels: feature
 ---
 ## Idea
 ## Por qué
-## Restricciones conocidas
+## Capacidades que toca (si se sabe)
+## Restricciones conocidas / artefactos externos (¿hay muestra real?)
 ## Cómo sabremos que quedó bien

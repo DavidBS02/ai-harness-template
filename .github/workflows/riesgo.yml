@@ -12,6 +12,8 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - id: r
+        env:
+          HARNESS_BRANCH: ${{ github.head_ref }}
         run: |
           git fetch origin ${{ github.base_ref }}
           NIVEL=$(scripts/riesgo.sh origin/${{ github.base_ref }} 2>detalle.txt)

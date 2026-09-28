@@ -1,4 +1,17 @@
 node_modules/
 .env
+.env.*
 *.log
 .DS_Store
+**/dist/
+
+# BMAD: versiona los artefactos de CONTRATO (SPEC, spine, reviews) para que OpenCode los vea en su worktree
+# (docs/LECCIONES.md §9). Ignora solo borradores. Si el SPEC trae datos sensibles, ignora la carpeta
+# completa y destila lo esencial en openspec/config.yaml.
+_bmad-output/**/.memlog.md
+_bmad-output/**/*.html
+_bmad/custom/config.user.toml
+openspec/config.yaml.orig
+
+# Versiones del harness pendientes de fusionar (las borra /init-harness)
+.harness/entrantes/

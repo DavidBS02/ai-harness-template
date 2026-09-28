@@ -1,9 +1,14 @@
 # Rutas que Claude Code (arquitecto) PUEDE editar. Prefijos relativos a la raíz del repo o worktree.
 # Todo lo demás (código de la app) se bloquea salvo HARNESS_OVERRIDE=1.
 docs/
+openspec/
+_bmad-output/
+_bmad/custom/
 .harness/
 .claude/
 .opencode/
+.agents/
+.cursor/
 .github/
 .githooks/
 scripts/

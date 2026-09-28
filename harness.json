@@ -1,11 +1,12 @@
 {
   "name": "ai-harness-template",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "placeholders": [
     { "file": "AGENTS.md", "marker": "<", "descripcion": "descripción del proyecto, stack, comandos, rutas prohibidas" },
     { "file": "opencode.json", "marker": "REEMPLAZA-CON-ID", "descripcion": "IDs de modelo de OmniRoute (combo revisor y DeepSeek V4)" },
     { "file": ".opencode/agents/revisor-gratis.md", "marker": "REEMPLAZA-CON-ID", "descripcion": "ID del combo revisor en OmniRoute" },
     { "file": ".opencode/agents/revisor-fuerte.md", "marker": "REEMPLAZA-CON-ID", "descripcion": "ID de DeepSeek V4 en OmniRoute" },
+    { "file": "openspec/config.yaml", "marker": "<qué es", "descripcion": "context del proyecto (lo siembra el primer change o /init-harness)" },
     { "file": ".harness/rutas-alto.txt", "marker": "valores por defecto", "descripcion": "rutas rojas reales del repo (las escribe /descubrir)" },
     { "file": "docs/harness/MAPA.md", "marker": "lo escribe Claude Code", "descripcion": "mapa del proyecto y zonas (lo escribe /descubrir)" },
     { "file": ".github/workflows/ci.yml", "marker": "Reemplaza este paso", "descripcion": "instalar + lint + tests del stack" }

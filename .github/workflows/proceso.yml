@@ -1,31 +1,43 @@
 name: proceso
 on:
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
   pull-requests: read
 jobs:
   verificar:
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha }}" }
-      - name: Rama, spec y riesgo
+      - name: Rama, change de OpenSpec y riesgo
         id: base
         env:
-          RAMA: ${{ github.event.pull_request.head.ref }}
+          HARNESS_BRANCH: ${{ github.event.pull_request.head.ref }}
           BASE: ${{ github.event.pull_request.base.ref }}
         run: |
           set -e
           git fetch origin "$BASE"
           NIVEL=$(bash scripts/riesgo.sh "origin/$BASE" 2>/dev/null || echo medio)
           echo "nivel=$NIVEL" >> "$GITHUB_OUTPUT"
-          if [[ "$RAMA" =~ ^(feat|fix)/([0-9]+)- ]]; then
-            N="${BASH_REMATCH[2]}"; echo "issue=$N" >> "$GITHUB_OUTPUT"
-            ls docs/specs/"$N"-*.md >/dev/null 2>&1 || { echo "::error::Falta docs/specs/$N-*.md. El spec lo escribe Claude con /spec."; exit 1; }
-          elif [[ ! "$RAMA" =~ ^(chore|docs)/ ]]; then
-            echo "::error::Rama '$RAMA' fuera de convención: feat/<issue>-<slug>, fix/<issue>-<slug>, chore/..., docs/..."; exit 1
+          ID=$(bash scripts/cambio.sh id); ISSUE=$(bash scripts/cambio.sh issue || true)
+          echo "issue=$ISSUE" >> "$GITHUB_OUTPUT"
+          case "$HARNESS_BRANCH" in
+            feat/*)
+              bash scripts/cambio.sh propuesta >/dev/null || { echo "::error::Falta openspec/changes/$ID/proposal.md (o su archivo en archive/). El change lo abre Claude con /cambio."; exit 1; } ;;
+            fix/*)
+              if ! bash scripts/cambio.sh propuesta >/dev/null && [ "$NIVEL" != "bajo" ]; then
+                echo "::error::fix/ sin change solo se permite con riesgo bajo (salió $NIVEL). Abre el change con /cambio."; exit 1; fi ;;
+            chore/*|docs/*) ;;
+            *) echo "::error::Rama '$HARNESS_BRANCH' fuera de convención: feat/<issue>-<change-id>, fix/<issue>-<change-id>, fix/<slug>, chore/..., docs/..."; exit 1 ;;
+          esac
+      - name: OpenSpec validate
+        run: |
+          if [ -d openspec ]; then
+            V=$(node -p "try{require('./package.json').devDependencies['@fission-ai/openspec']||'latest'}catch(e){'latest'}" 2>/dev/null || echo latest)
+            npx --yes "@fission-ai/openspec@$V" validate --all
           fi
       - name: Revisiones marcadas según riesgo
         uses: actions/github-script@v7

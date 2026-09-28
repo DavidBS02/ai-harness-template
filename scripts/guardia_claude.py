@@ -41,7 +41,8 @@ def bloquear(objetivo):
 Bloqueado: {tool} sobre `{objetivo}`.
 
 Cómo hacerlo bien:
-  1. Feature o cambio normal → escribe/ajusta el spec con /spec y ejecútalo en OpenCode: `scripts/ejec` → /ejecutar-spec <issue>.
+  1. Feature o cambio normal → abre el change con /cambio y ejecútalo en OpenCode: `scripts/ejec` → /ejecutar-cambio <id>.
+     Si estás en una skill bmad-*: BMAD no ejecuta; entrega el dossier y nombra /cambio o /opsx:update <id>.
   2. Arreglo < 20 líneas dentro de /juzgar-pr, o zona roja que docs/harness/DELEGACION.md asigna a Claude →
      el humano debe relanzar Claude con: HARNESS_OVERRIDE=1 scripts/arq
 
