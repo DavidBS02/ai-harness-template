@@ -598,4 +598,7 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    try:
+        sys.exit(main(sys.argv[1:]))
+    except BrokenPipeError:  # p. ej. `harness.py ruta x | head -1`
+        sys.exit(0)
