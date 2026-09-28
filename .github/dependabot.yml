@@ -1,0 +1,14 @@
+# Dependabot semanal (docs/ESTANDAR-PROYECTO.md §4). /init-harness añade el ecosistema del stack.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    groups:
+      actions: { patterns: ["*"] }
+  # STACK — ejemplo Node:
+  # - package-ecosystem: npm
+  #   directory: /
+  #   schedule: { interval: weekly }
+  #   groups:
+  #     dependencias: { patterns: ["*"] }

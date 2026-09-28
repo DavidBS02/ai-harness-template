@@ -9,7 +9,7 @@
 
 ## Árbol de decisión
 1. **Producto, PRD, UX, arquitectura, cambiar un AD o dividir en épicas** → BMAD. Antes de invocar una skill, `/ruta <skill>`: las de *decidir* y *redactar* van en Claude; las de *recolectar* y *revisar* van en OpenCode (`/recolectar`, `/revisar-artefacto`) y dejan un digest que Claude lee.
-2. **Feature, fix, refactor o ajuste** → `/cambio "<idea>"` (elige nivel 1–3) → OpenCode `/ejecutar-cambio <id>` → `/juzgar-pr`.
+2. **Feature, fix, refactor o ajuste** → `/cambio "<idea>"` (elige nivel 1–3) → OpenCode `/ejecutar-cambio <id>` (en `scripts/ejec-contenedor`) → `/juzgar-pr`.
 3. **Iniciativa grande** → BMAD primero → un change por pieza.
 4. **Trivial** (riesgo bajo y ≤ 20 líneas) → nivel 0: `scripts/nuevo.sh <slug> --nivel 0`, OpenCode `@mecanico`, PR con solo CI. Lotes de triviales en un PR `chore/lote-<fecha>`.
 5. **Ambiguo** → pregunta.

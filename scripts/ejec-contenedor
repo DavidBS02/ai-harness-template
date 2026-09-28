@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Lanza OpenCode (rol EJECUTOR) dentro de un contenedor que solo ve este repo (docs/ESTANDAR-PROYECTO.md §3).
+#   scripts/ejec-contenedor              abre OpenCode
+#   scripts/ejec-contenedor --shell      abre una terminal en el contenedor
+#   scripts/ejec-contenedor --rebuild    reconstruye la imagen (p. ej. para actualizar OpenCode)
+# Requisitos: Docker u OrbStack, y GH_TOKEN_AGENTES (token fine-grained limitado a los repos del proyecto).
+set -euo pipefail
+command -v docker >/dev/null || { echo "Falta Docker u OrbStack." >&2; exit 1; }
+RAIZ="$(git rev-parse --show-toplevel)"
+IMAGEN="harness-ejecutor:${OPENCODE_VERSION:-latest}"
+CMD=(opencode)
+for a in "$@"; do case "$a" in --shell) CMD=(bash);; --rebuild) docker rmi -f "$IMAGEN" >/dev/null 2>&1 || true;; esac; done
+docker image inspect "$IMAGEN" >/dev/null 2>&1 || docker build -t "$IMAGEN" --build-arg "OPENCODE_VERSION=${OPENCODE_VERSION:-latest}" "$RAIZ/.harness/contenedor"
+[ -n "${GH_TOKEN_AGENTES:-}" ] || echo "⚠️  GH_TOKEN_AGENTES no definido: gh no funcionará dentro del contenedor (push y PRs)." >&2
+[ -n "${OMNIROUTE_API_KEY:-}" ] || echo "⚠️  OMNIROUTE_API_KEY no definido: los revisores de OmniRoute no responderán." >&2
+[ -f "$RAIZ/.env" ] && echo "ℹ️  .env existe en el repo: queda montado. Si no lo necesita el ejecutor, muévelo fuera antes." >&2
+MONTAJES=(-v "$RAIZ":"$RAIZ")
+COMUN="$(git rev-parse --path-format=absolute --git-common-dir)"
+case "$COMUN" in "$RAIZ"/*) ;; *) MONTAJES+=(-v "$COMUN":"$COMUN");; esac   # worktree: su .git vive en el repo principal
+exec docker run -it --rm "${MONTAJES[@]}" -w "$PWD" \
+  -v harness-opencode-config:/root/.config/opencode \
+  -v harness-opencode-data:/root/.local/share/opencode \
+  -e GH_TOKEN="${GH_TOKEN_AGENTES:-}" \
+  -e OMNIROUTE_API_KEY="${OMNIROUTE_API_KEY:-}" \
+  -e OMNIROUTE_BASE_URL="http://host.docker.internal:20128/v1" \
+  -e HARNESS_ROL=ejecutor -e HARNESS_OVERRIDE="${HARNESS_OVERRIDE:-0}" \
+  -e GIT_AUTHOR_NAME="$(git config user.name)" -e GIT_AUTHOR_EMAIL="$(git config user.email)" \
+  -e GIT_COMMITTER_NAME="$(git config user.name)" -e GIT_COMMITTER_EMAIL="$(git config user.email)" \
+  --add-host host.docker.internal:host-gateway \
+  "$IMAGEN" "${CMD[@]}"

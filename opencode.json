@@ -8,7 +8,7 @@
       "npm": "@ai-sdk/openai-compatible",
       "name": "OmniRoute (capas gratis)",
       "options": {
-        "baseURL": "http://localhost:20128/v1",
+        "baseURL": "{env:OMNIROUTE_BASE_URL}",
         "apiKey": "{env:OMNIROUTE_API_KEY}"
       },
       "models": {

@@ -8,6 +8,8 @@ Repo base para trabajar cualquier proyecto (verde o existente) con **un método*
 | Herramientas | Arquitecto: **Claude Code** (Claude Pro) · Ejecutor: **OpenCode** (OpenCode Go) · Revisores: **OmniRoute** (capas gratis) y **Codex** (GPT-6 Luna, ChatGPT Free) | solo lectura para revisores |
 | GitHub | issue → rama `feat/<issue>-<change-id>` → PR → CI + etiqueta de riesgo + check de proceso → merge por `/juzgar-pr` | — |
 
+**Configurar un proyecto:** [`docs/ESTANDAR-PROYECTO.md`](docs/ESTANDAR-PROYECTO.md) (seguridad, calidad y operación, paso a paso) · **Verificar:** [`docs/PRUEBA-DE-HUMO.md`](docs/PRUEBA-DE-HUMO.md).
+
 Guía completa: [`docs/harness-guide.md`](docs/harness-guide.md) · Regla que se carga siempre: [`.claude/rules/workflow-routing.md`](.claude/rules/workflow-routing.md) · Lecciones con origen real: [`docs/LECCIONES.md`](docs/LECCIONES.md).
 
 ## Quickstart
@@ -71,7 +73,7 @@ HANDOFF.md                   estado vivo de la rama
 opencode.json                modelos por defecto + proveedor OmniRoute
 .harness/                    base de openspec/config.yaml
 .githooks/                   pre-commit / commit-msg / pre-push por rol
-scripts/                     harness.py (motor) + test_harness.py · bootstrap, instalar-frameworks, doctor, github-setup, nuevo, estado, inventario, riesgo, cambio, arq, ejec
+scripts/                     harness.py (motor) + test_harness.py · bootstrap, instalar-frameworks, doctor, github-setup, nuevo, estado, inventario, riesgo, cambio, arq, ejec, ejec-contenedor
 .github/                     plantillas de issue y PR; workflows ci, riesgo, proceso, harness-selftest
 docs/                        harness-guide, LECCIONES, DECISIONES (a mano) · ESTADO, harness/RUTAS (generados) · ONBOARDING · harness/ (MAPA, DELEGACION, INVENTARIO, resumenes/)
 _bmad/ _bmad-output/         BMAD (los instala instalar-frameworks.sh)
@@ -89,7 +91,7 @@ openspec/                    OpenSpec (lo instala instalar-frameworks.sh)
 | 3. Git hooks | `.githooks/` | No se commitea fuera del rol ni se hace push a main |
 | 4. GitHub | `proceso.yml` + protección de main | No se mergea sin change, sin issue o sin las revisiones del riesgo |
 
-Lanza con `scripts/arq` (Claude) y `scripts/ejec` (OpenCode). Override consciente: `HARNESS_OVERRIDE=1 scripts/arq`; queda registrado en el commit.
+Lanza con `scripts/arq` (Claude, con `/sandbox` activo) y `scripts/ejec-contenedor` (OpenCode aislado en un contenedor; `scripts/ejec` sin contenedor). Override consciente: `HARNESS_OVERRIDE=1 scripts/arq`; queda registrado en el commit.
 
 ## Reglas que no se negocian
 

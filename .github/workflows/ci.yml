@@ -1,18 +1,30 @@
 name: ci
+# Gates de calidad (docs/ESTANDAR-PROYECTO.md §4). /init-harness reemplaza los pasos marcados STACK por los reales.
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+permissions:
+  contents: read
 jobs:
-  test:
+  test:                      # no renombrar: github-setup.sh lo exige como check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Ajusta a tu stack. Ejemplo Node:
+        with: { fetch-depth: 0 }
+      - name: Secretos (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # STACK — ejemplo Node; reemplázalo por el de tu proyecto:
       # - uses: actions/setup-node@v4
-      #   with: { node-version: 22 }
-      # - run: npm ci
-      # - run: npm run lint
-      # - run: npm test
-      - run: echo "Reemplaza este paso con instalar + lint + tests de tu proyecto"
+      #   with: { node-version: 22, cache: npm }
+      # - run: npm ci                                  # instalación reproducible
+      # - run: npm run lint                            # lint y formato
+      # - run: npm run typecheck                       # tipos
+      # - run: npm test                                # tests
+      # - run: npm run build                           # build
+      # - run: npm audit --audit-level=high            # dependencias
+      - name: STACK pendiente
+        run: echo "::warning::ci.yml sin los gates del stack. Corre /init-harness para escribirlos (doctor.sh lo marca)."

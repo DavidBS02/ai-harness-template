@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Lanza OpenCode en rol EJECUTOR (activa guardias del plugin y de git). Úsalo dentro del worktree de la rama.
+# Lanza OpenCode en rol EJECUTOR en tu máquina. Preferido: scripts/ejec-contenedor (aislado).
 export HARNESS_ROL=ejecutor
+export OMNIROUTE_BASE_URL="${OMNIROUTE_BASE_URL:-http://localhost:20128/v1}"
 [ "${HARNESS_OVERRIDE:-0}" = "1" ] && echo "⚠️  OVERRIDE activo: OpenCode puede tocar artefactos del arquitecto. Queda registrado."
+echo "ℹ️  OpenCode sin contenedor. Para aislarlo (recomendado): scripts/ejec-contenedor" >&2
 exec opencode "$@"

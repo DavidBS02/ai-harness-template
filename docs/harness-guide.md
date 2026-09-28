@@ -129,6 +129,8 @@ Efímero: `HANDOFF.md`, que se vacía al mergear. Regla: si un dato puede deriva
 
 ## 13. Cuándo cambiar el setup
 
+Configuración paso a paso: `docs/ESTANDAR-PROYECTO.md`; verificación: `docs/PRUEBA-DE-HUMO.md`.
+
 - Límite de Claude Pro 3 o más veces por semana → baja niveles, mueve más BMAD a recolectar/revisar, o Max 5x.
 - Límite de Go a diario → GLM Coding Plan Lite o Go + Lite.
 - Luna se queda corto seguido → ChatGPT Go o Plus.
@@ -137,7 +139,7 @@ Efímero: `HANDOFF.md`, que se vacía al mergear. Regla: si un dato puede deriva
 
 ## 14. Privacidad
 
-Código o fixtures con datos personales, `.env` y tokens: nunca a capas gratuitas. Nada de cifras reales en reglas, estado ni decisiones versionadas.
+Claude Code con `/sandbox` y lectura de secretos bloqueada; OpenCode en `scripts/ejec-contenedor` con un token *fine-grained*; nada de cuentas de trabajo en el mismo usuario de macOS (`docs/ESTANDAR-PROYECTO.md` §1 y §3). Código o fixtures con datos personales, `.env` y tokens: nunca a capas gratuitas. Nada de cifras reales en reglas, estado ni decisiones versionadas.
 
 ## 15. El harness es vivo
 

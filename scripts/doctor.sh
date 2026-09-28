@@ -24,6 +24,14 @@ python3 scripts/harness.py sync --check >/dev/null 2>&1 && ok "adaptadores al d�
 SM=$(python3 scripts/harness.py skills 2>/dev/null | grep -c "sin mapear:" || true); [ "$SM" = "0" ] && ok "todas las skills instaladas están clasificadas" || ko "$SM skill(s) sin mapear (bloqueadas): python3 scripts/harness.py skills → /clasificar-skill <nombre> en Claude Code"
 for f in .githooks/pre-commit scripts/harness.py scripts/arq scripts/ejec; do [ -x "$f" ] || ko "$f no es ejecutable (chmod +x; y en git: git update-index --chmod=+x $f)"; done
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_*.py' >/dev/null 2>&1 && ok "selftest del harness en verde" || ko "selftest del harness falla: python3 -m unittest discover -s scripts -p 'test_*.py' -v"
+echo "Seguridad:"
+grep -q '"denyRead"' .claude/settings.json 2>/dev/null && grep -q 'Read(./.env)' .claude/settings.json && ok "Claude Code bloquea la lectura de .env y credenciales" || ko "falta el bloqueo de secretos en .claude/settings.json"
+if [ -f .env ]; then git check-ignore -q .env && ok ".env ignorado por git" || ko ".env NO está en .gitignore"; fi
+command -v docker >/dev/null && ok "docker disponible (scripts/ejec-contenedor)" || warn "sin docker/OrbStack: OpenCode correrá sin contenedor"
+[ -n "${GH_TOKEN_AGENTES:-}" ] && ok "GH_TOKEN_AGENTES definido" || warn "GH_TOKEN_AGENTES no definido (token fine-grained para el contenedor)"
+[ -n "${ANTHROPIC_API_KEY:-}" ] && ko "ANTHROPIC_API_KEY definida" || true
+grep -q "STACK pendiente" .github/workflows/ci.yml 2>/dev/null && warn "ci.yml sin los gates del stack: /init-harness" || ok "ci.yml con gates del stack"
+[ -f .github/dependabot.yml ] && ok "dependabot configurado" || warn "falta .github/dependabot.yml"
 echo "Guardias:"
 [ "$(git config core.hooksPath)" = ".githooks" ] && ok "git hooks activos" || ko "git hooks inactivos: git config core.hooksPath .githooks"
 [ -f .claude/settings.json ] && grep -q guardia_claude .claude/settings.json && ok "hook de Claude Code configurado" || ko "falta .claude/settings.json con el hook"

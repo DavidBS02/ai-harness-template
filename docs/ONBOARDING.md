@@ -1,4 +1,7 @@
-# Onboarding: configuración por herramienta
+# Onboarding
+
+> El estándar completo y actualizado para configurar un proyecto está en [`ESTANDAR-PROYECTO.md`](ESTANDAR-PROYECTO.md), y la verificación en [`PRUEBA-DE-HUMO.md`](PRUEBA-DE-HUMO.md). Este archivo queda como referencia rápida por herramienta.
+
 
 Orden recomendado. Tiempo total: 30–45 min la primera vez.
 

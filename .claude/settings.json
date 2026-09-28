@@ -1,4 +1,18 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.aws/**)"
+    ]
+  },
+  "sandbox": {
+    "filesystem": {
+      "denyRead": ["./.env", "~/.ssh", "~/.config/gh", "~/.aws"]
+    }
+  },
   "hooks": {
     "PreToolUse": [
       {

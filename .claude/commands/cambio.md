@@ -17,4 +17,4 @@ No implementes código. Tu entregable es un change listo para que OpenCode lo ej
    - Deltas MODIFIED según `docs/LECCIONES.md` §1. Si depende de algo externo, muestra real u Open Question temprana (§2).
 5. `npx openspec validate <id>`. Solo si el riesgo es medio o alto: `/codex:adversarial-review` sobre proposal + design.
 6. Commit (`spec(<id>): propuesta`), push y PR en draft con `.github/PULL_REQUEST_TEMPLATE.md`.
-7. Cierra con la instrucción exacta para el ejecutor: `scripts/ejec` (en el worktree si lo creaste) → `/ejecutar-cambio <id>`.
+7. Cierra con la instrucción exacta para el ejecutor: `scripts/ejec-contenedor` (en el worktree si lo creaste) → `/ejecutar-cambio <id>`.
