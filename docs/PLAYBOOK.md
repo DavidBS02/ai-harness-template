@@ -127,6 +127,12 @@ Cada revisor corre DESPUÉS de corregir lo que encontró el anterior, para no ga
 - **Codex/Luna NO** se usa para tareas rutinarias (la cuota Free es chica y no se recarga).
 - **GitHub Actions** es la única verdad sobre "los tests pasan". Ningún agente puede afirmar que pasan sin que CI lo confirme.
 
+## 5b. Guardias técnicas
+
+Las reglas de la sección 5 no dependen solo de que el modelo obedezca. Hay cuatro capas: instrucciones (blanda), hook de Claude Code y plugin de OpenCode (bloquean la herramienta antes de actuar), git hooks según `HARNESS_ROL` (bloquean el commit y el push), y la Action `proceso.yml` + protección de main (bloquean el merge). Cada bloqueo explica cómo hacerlo bien. Detalle en el README.
+
+Override: `HARNESS_OVERRIDE=1 scripts/arq` o `scripts/ejec`. Úsalo para arreglos < 20 líneas en /juzgar-pr y para zona roja asignada a Claude en DELEGACION.md.
+
 ## 6. Contexto compartido
 
 - `AGENTS.md`: reglas del repo. Lo leen OpenCode y Codex de forma nativa; Claude Code lo importa desde `CLAUDE.md` (`@AGENTS.md`).

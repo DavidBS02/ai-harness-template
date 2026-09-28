@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Lanza OpenCode en rol EJECUTOR (activa guardias del plugin y de git). Úsalo dentro del worktree de la rama.
+export HARNESS_ROL=ejecutor
+[ "${HARNESS_OVERRIDE:-0}" = "1" ] && echo "⚠️  OVERRIDE activo: OpenCode puede tocar artefactos del arquitecto. Queda registrado."
+exec opencode "$@"

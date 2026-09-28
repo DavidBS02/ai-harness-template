@@ -16,4 +16,4 @@ Fase 0: vas a ENTENDER este proyecto para decidir el routing de copilotos. No im
 
 8. Aplica el entendimiento al harness: ejecuta los pasos de `/init-harness` (AGENTS.md con la sección "No tocar" = zona roja y las reglas no escritas; ci.yml real; lista de IDs de modelo pendientes).
 
-9. Commit `chore: descubrimiento y routing del harness` y cierra con: resumen de 10 líneas del proyecto, tabla de zonas, y qué queda manual.
+9. Crea la rama `chore/harness-descubrimiento`, commit `chore: descubrimiento y routing del harness`, push y `gh pr create` y cierra con: resumen de 10 líneas del proyecto, tabla de zonas, y qué queda manual.

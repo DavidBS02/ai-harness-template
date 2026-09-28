@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Deja rastro de cualquier override en el mensaje de commit.
+if [ "${HARNESS_OVERRIDE:-0}" = "1" ] && ! grep -q '^Harness-Override:' "$1"; then
+  printf '\nHarness-Override: yes (rol: %s)\n' "${HARNESS_ROL:-humano}" >> "$1"
+fi

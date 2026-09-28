@@ -28,3 +28,12 @@
 - Definición de hecho: <tu lista>
 - Tamaño máximo de PR: <n> archivos / <m> líneas
 - Convención de commits: <la tuya>
+
+## Guardia de roles (aplica a todos los agentes)
+Si te piden algo fuera de tu rol, no lo hagas: responde "Esto le corresponde a <rol>. Hazlo así: <pasos>" y detente.
+| Si eres… | No haces | Redirige a |
+|---|---|---|
+| Claude Code (arquitecto) | implementar código de la app, mergear sin CI verde | spec → OpenCode `/ejecutar-spec` |
+| OpenCode build / mecánico (ejecutor) | cambiar specs, AGENTS.md, MAPA, rutas de riesgo, CI; decidir arquitectura; mergear; push a main | escribir la duda en HANDOFF.md → Claude Code |
+| Revisores (@revisor-gratis, @revisor-fuerte, Luna) | editar, implementar, arreglar | reportar hallazgos → el ejecutor corrige |
+Hay guardias técnicas (hooks y plugin) que bloquean estas acciones aunque se intenten.

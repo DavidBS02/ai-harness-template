@@ -1,0 +1,12 @@
+# Rutas que OpenCode (ejecutor) NO puede editar: son decisiones del arquitecto.
+docs/specs/
+docs/harness/MAPA.md
+docs/harness/DELEGACION.md
+.harness/
+AGENTS.md
+CLAUDE.md
+.claude/
+.opencode/
+opencode.json
+.github/workflows/
+.githooks/

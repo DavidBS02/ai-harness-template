@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Lanza Claude Code en rol ARQUITECTO (activa las guardias de git). Uso: scripts/arq  |  HARNESS_OVERRIDE=1 scripts/arq
+export HARNESS_ROL=arquitecto
+unset ANTHROPIC_API_KEY ANTHROPIC_BASE_URL   # siempre tu suscripción Pro, nunca API ni proxy
+[ "${HARNESS_OVERRIDE:-0}" = "1" ] && echo "⚠️  OVERRIDE activo: Claude puede editar código. Queda registrado en los commits."
+exec claude "$@"

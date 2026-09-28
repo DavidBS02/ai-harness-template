@@ -67,6 +67,21 @@ docs/                     PLAYBOOK, ONBOARDING, INTEGRACION-FRAMEWORK, specs/, h
 harness.json              versión y lista de placeholders pendientes
 ```
 
+## Guardias de rol: qué se bloquea y cómo
+
+| Capa | Dónde | Qué bloquea | Tipo |
+|---|---|---|---|
+| 1. Instrucciones | CLAUDE.md, AGENTS.md, prompts | Cada agente rechaza lo que no es de su rol y te dice a quién le toca | Blanda |
+| 2a. Hook de Claude Code | `.claude/settings.json` + `scripts/guardia_claude.py` | Claude no puede editar código de la app (solo docs, specs, config del harness), ni vía Edit/Write ni vía bash | Dura |
+| 2b. Plugin de OpenCode | `.opencode/plugins/guardia.ts` | OpenCode no toca specs/MAPA/reglas/CI, no toca zona roja sin autorización en el spec, no mergea, no hace push a main | Dura |
+| 2c. Permisos de agentes | `.opencode/agents/revisor-*.md` | Revisores (OmniRoute) no pueden editar | Dura |
+| 3. Git hooks | `.githooks/` (activados por bootstrap) | Aunque algo se escape, no se puede COMMITEAR fuera del rol ni hacer push a main | Dura |
+| 4. GitHub | `proceso.yml` + protección de main | El PR no se mergea sin spec, sin issue enlazado, o sin las revisiones que exige su riesgo | Dura |
+
+Lanza siempre con `scripts/arq` (Claude) y `scripts/ejec` (OpenCode). Para saltarte una guardia a conciencia: `HARNESS_OVERRIDE=1 scripts/arq`; queda registrado en el commit (`Harness-Override: yes`).
+
+OmniRoute no es un agente y no "rechaza" nada por sí mismo: lo que se controla es quién lo usa (solo los agentes revisores, con edición denegada).
+
 ## Reglas que no se negocian
 
 1. La suscripción de Claude solo se usa en Claude Code. Nunca detrás de un proxy.

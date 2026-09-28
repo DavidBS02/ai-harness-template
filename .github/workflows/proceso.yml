@@ -1,0 +1,47 @@
+name: proceso
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha }}" }
+      - name: Rama, spec y riesgo
+        id: base
+        env:
+          RAMA: ${{ github.event.pull_request.head.ref }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -e
+          git fetch origin "$BASE"
+          NIVEL=$(bash scripts/riesgo.sh "origin/$BASE" 2>/dev/null || echo medio)
+          echo "nivel=$NIVEL" >> "$GITHUB_OUTPUT"
+          if [[ "$RAMA" =~ ^(feat|fix)/([0-9]+)- ]]; then
+            N="${BASH_REMATCH[2]}"; echo "issue=$N" >> "$GITHUB_OUTPUT"
+            ls docs/specs/"$N"-*.md >/dev/null 2>&1 || { echo "::error::Falta docs/specs/$N-*.md. El spec lo escribe Claude con /spec."; exit 1; }
+          elif [[ ! "$RAMA" =~ ^(chore|docs)/ ]]; then
+            echo "::error::Rama '$RAMA' fuera de convención: feat/<issue>-<slug>, fix/<issue>-<slug>, chore/..., docs/..."; exit 1
+          fi
+      - name: Revisiones marcadas según riesgo
+        uses: actions/github-script@v7
+        env:
+          NIVEL: ${{ steps.base.outputs.nivel }}
+          ISSUE: ${{ steps.base.outputs.issue }}
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+            const nivel = process.env.NIVEL, issue = process.env.ISSUE;
+            const marcado = (re) => new RegExp(`- \\[x\\][^\\n]*${re}`, "i").test(body);
+            const errores = [];
+            if (issue && !new RegExp(`#${issue}\\b`).test(body)) errores.push(`El PR debe enlazar el issue (#${issue}).`);
+            if (!marcado("Revisión 1")) errores.push("Falta marcar Revisión 1 (@revisor-gratis).");
+            if (["medio","alto"].includes(nivel) && !marcado("Revisión 2")) errores.push(`Riesgo ${nivel}: falta Revisión 2 (@revisor-fuerte).`);
+            if (nivel === "alto" && !marcado("Revisión 3")) errores.push("Riesgo alto: falta Revisión 3 (/codex:review, Luna).");
+            if (nivel === "alto" && !marcado("OK final")) errores.push("Riesgo alto: falta el OK final de Claude Code + lectura humana.");
+            core.info(`riesgo=${nivel}`);
+            if (errores.length) core.setFailed("⛔ Proceso del harness:\n- " + errores.join("\n- "));

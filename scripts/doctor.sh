@@ -10,6 +10,12 @@ gh auth status >/dev/null 2>&1 && ok "gh autenticado" || ko "gh: ejecuta gh auth
 [ -n "${ANTHROPIC_BASE_URL:-}" ] && warn "ANTHROPIC_BASE_URL está definida: Claude Code NO debe pasar por proxies." || ok "sin ANTHROPIC_BASE_URL"
 curl -s -m 2 http://localhost:20128/v1/models >/dev/null 2>&1 && ok "OmniRoute respondiendo en :20128" || warn "OmniRoute no responde en :20128 (ejecuta: omniroute)"
 [ -n "${OMNIROUTE_API_KEY:-}" ] && ok "OMNIROUTE_API_KEY definida" || warn "OMNIROUTE_API_KEY no definida (la usa opencode.json)"
+echo "Guardias:"
+[ "$(git config core.hooksPath)" = ".githooks" ] && ok "git hooks activos" || ko "git hooks inactivos: git config core.hooksPath .githooks"
+[ -f .claude/settings.json ] && grep -q guardia_claude .claude/settings.json && ok "hook de Claude Code configurado" || ko "falta .claude/settings.json con el hook"
+[ -f .opencode/plugins/guardia.ts ] && ok "plugin de OpenCode presente" || ko "falta .opencode/plugins/guardia.ts"
+command -v python3 >/dev/null && ok "python3 (lo usa el hook de Claude)" || ko "python3 no instalado: el hook de Claude no funcionará"
+echo "  Lanza siempre con scripts/arq (Claude) y scripts/ejec (OpenCode) para activar los roles."
 echo "Placeholders pendientes:"
 P=0; for f in AGENTS.md opencode.json .opencode/agents/revisor-gratis.md .opencode/agents/revisor-fuerte.md .github/workflows/ci.yml; do
   [ -f "$f" ] && grep -Eq 'REEMPLAZA-CON-ID|<una línea>|<comando>|Reemplaza este paso' "$f" && { warn "$f tiene placeholders"; P=1; }; done

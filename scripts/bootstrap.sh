@@ -17,12 +17,15 @@ for f in HANDOFF.md opencode.json harness.json \
   .opencode/agents/revisor-gratis.md .opencode/agents/revisor-fuerte.md \
   .opencode/commands/ejecutar-spec.md .opencode/commands/handoff.md \
   scripts/riesgo.sh scripts/inventario.sh scripts/doctor.sh scripts/github-setup.sh \
-  .harness/rutas-alto.txt .harness/rutas-bajo.txt \
+  .harness/rutas-alto.txt .harness/rutas-bajo.txt .harness/permisos-arquitecto.txt .harness/protegidas-ejecutor.txt \
+  .claude/settings.json scripts/guardia_claude.py scripts/arq scripts/ejec .opencode/plugins/guardia.ts \
+  .githooks/_lib.sh .githooks/pre-commit .githooks/commit-msg .githooks/pre-push .github/workflows/proceso.yml \
   .claude/commands/descubrir.md .opencode/commands/resumir-modulos.md \
   docs/harness/MAPA.md docs/harness/DELEGACION.md \
   .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/feature.md .github/workflows/ci.yml .github/workflows/riesgo.yml \
   docs/PLAYBOOK.md docs/ONBOARDING.md docs/INTEGRACION-FRAMEWORK.md docs/specs/_plantilla.md; do copiar "$f"; done
-chmod +x scripts/*.sh
+chmod +x scripts/*.sh scripts/arq scripts/ejec scripts/guardia_claude.py .githooks/* 2>/dev/null || true
+git config core.hooksPath .githooks && echo "  git hooks activos (.githooks)"
 
 # AGENTS.md y CLAUDE.md: si existen, no se pisan; se añade el import/sección al final.
 if [ -e AGENTS.md ]; then

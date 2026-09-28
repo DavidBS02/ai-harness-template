@@ -9,8 +9,8 @@ gh label create "feature" --color "1D76DB" --force >/dev/null || true
 # Protección de main: PR obligatorio + checks ci y riesgo.
 gh api -X PUT "repos/$REPO/branches/main/protection" \
   -H "Accept: application/vnd.github+json" \
-  --input - > /dev/null << 'JSON' && echo "  main protegida (PR + checks ci, riesgo)"
-{"required_status_checks":{"strict":true,"contexts":["test","clasificar"]},
+  --input - > /dev/null << 'JSON' && echo "  main protegida (PR + checks ci, riesgo, proceso)"
+{"required_status_checks":{"strict":true,"contexts":["test","clasificar","verificar"]},
  "enforce_admins":false,
  "required_pull_request_reviews":null,
  "restrictions":null,

@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -uo pipefail
+. "$(dirname "$0")/_lib.sh"
+[ "$OVERRIDE" = "1" ] && exit 0
+[ "$ROL" = "humano" ] && exit 0
+RAMA="$(git branch --show-current)"
+STAGED="$(git diff --cached --name-only)"
+[ -z "$STAGED" ] && exit 0
+
+case "$ROL" in
+  arquitecto)
+    while IFS= read -r f; do
+      coincide_prefijo "$f" .harness/permisos-arquitecto.txt || \
+        rechazo "Claude (arquitecto) intenta commitear código de la app: $f" "especifica el cambio con /spec y ejecútalo en OpenCode (scripts/ejec → /ejecutar-spec)."
+    done <<< "$STAGED" ;;
+  ejecutor)
+    case "$RAMA" in main|master) rechazo "OpenCode no commitea en $RAMA." "trabaja en el worktree de la rama feat/<issue>-<slug> que creó /spec.";; esac
+    while IFS= read -r f; do
+      coincide_prefijo "$f" .harness/protegidas-ejecutor.txt && \
+        rechazo "OpenCode (ejecutor) intenta commitear un artefacto del arquitecto: $f" "deja la propuesta en HANDOFF.md para que Claude la resuelva."
+      if es_zona_roja "$f" && ! spec_autoriza_roja; then
+        rechazo "zona roja sin autorización en el spec: $f" "Claude debe añadir 'OpenCode-zona-roja: autorizado' al spec de esta rama, o implementarlo él."
+      fi
+    done <<< "$STAGED" ;;
+esac
+exit 0
