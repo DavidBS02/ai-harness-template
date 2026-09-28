@@ -137,6 +137,11 @@ class TestProceso(unittest.TestCase):
         errores = harness.verificar_proceso(self.r.dir, "main", body)
         self.assertTrue(any("Revisión 2" in e for e in errores) and any("Revisión 3" in e for e in errores))
 
+    def test_dependabot_no_exige_change_ni_revisiones(self):
+        self.r.rama("dependabot/github_actions/gitleaks/gitleaks-action-3")
+        self.r.escribir(".github/workflows/ci.yml", "x"); self.r.commit("bump")
+        self.assertEqual(harness.verificar_proceso(self.r.dir, "main", ""), [])
+
     def test_rama_fuera_de_convencion(self):
         self.r.rama("mi-rama")
         self.assertTrue(harness.verificar_proceso(self.r.dir, "main", "")[0].startswith("Rama"))

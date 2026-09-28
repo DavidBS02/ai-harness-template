@@ -108,7 +108,7 @@ Nada llega a `main` sin pasar todos los gates de su nivel. Los gates viven en CI
 **Dependencias:**
 
 - Versiones fijadas con lockfile versionado; OpenSpec fijado exacto.
-- Dependabot semanal (`.github/dependabot.yml`, con `github-actions` ya incluido; `/init-harness` agrega el ecosistema del stack). Se tratan como nivel 0 o 1.
+- Dependabot semanal (`.github/dependabot.yml`, con `github-actions` ya incluido; `/init-harness` agrega el ecosistema del stack). El check `proceso` no les exige change ni revisiones: basta CI en verde y tu merge manual.
 - Antes de agregar un paquete: mantenimiento activo, licencia compatible y que no duplique algo que ya hay.
 
 **PRs:**

@@ -187,6 +187,8 @@ def calcular_nivel(root, base="main"):
 def verificar_proceso(root, base, body):
     errores = []
     nombre = rama(root)
+    if (nombre or "").startswith("dependabot/"):
+        return []  # actualizaciones automáticas: sin change ni revisiones LLM; CI + gitleaks + tu merge manual
     tipo, issue, cid = partes_rama(nombre)
     if not (tipo or re.match(r"^(chore|docs)/", nombre or "")):
         return [f"Rama '{nombre}' fuera de convención: feat/<id>, feat/<issue>-<id>, fix/<slug>, fix/<issue>-<id>, chore/..., docs/..."]
