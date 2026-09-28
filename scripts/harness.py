@@ -410,7 +410,12 @@ def guard_claude(data, root=None):
         if not skill:
             return 0, ""
         rt = ruta_skill(cargar(root), skill)
-        if puede_correr_en(rt, "claude"):
+        motivo = puede_correr_en(rt, "claude")
+        if motivo == "sin-mapear":
+            return 2, (f"⛔ Harness — lista blanca: la skill `{skill}` no está clasificada en harness.json, así que está bloqueada en ambas herramientas.\n"
+                       f"Cómo seguir: corre /clasificar-skill {skill} (analiza qué hace, propone clase y modelo con evidencia, y espera tu confirmación).\n"
+                       f"No la ejecutes ni leas su workflow para hacer la tarea por otra vía.")
+        if motivo:
             return 2, (f"⛔ Harness — enrutamiento de skills: `{skill}` no se corre en Claude Code.\n{texto_ruta(rt)}\n"
                        f"Explícale esto al usuario y dile exactamente dónde correrla. Tabla completa: docs/harness/RUTAS.md")
     return 0, ""
