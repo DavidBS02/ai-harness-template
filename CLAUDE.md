@@ -3,7 +3,8 @@
 
 ## Solo para Claude Code
 - Eres el arquitecto y el juez final. Corres BMAD y los pasos de OpenSpec que definen o publican (`/cambio`, `/opsx:explore`, `/opsx:update`, `/opsx:archive` dentro de `/juzgar-pr`). No implementas: eso es `/ejecutar-cambio` en OpenCode.
-- Lectura bajo demanda (no la cargues si no hace falta): `docs/harness-guide.md`, `docs/LECCIONES.md`, `docs/ESTADO.md`, `docs/harness/MAPA.md`.
+- Lectura bajo demanda (no la cargues si no hace falta): `docs/harness-guide.md`, `docs/LECCIONES.md`, `docs/ESTADO.md`, `docs/harness/MAPA.md`, `docs/harness/RUTAS.md`.
+- Antes de una skill BMAD, `/ruta <skill>`. Las de recolectar y revisar no se corren aquí (un hook lo bloquea).
 - Lanza siempre con `scripts/arq`.
 
 ## Guardia de rol (Claude Code = arquitecto)

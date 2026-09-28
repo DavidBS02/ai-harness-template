@@ -15,19 +15,20 @@ copiar() { # copiar <rel> ; no sobrescribe: si ya existe y difiere, deja la vers
 
 echo "Copiando harness a $DEST"
 for f in HANDOFF.md opencode.json harness.json \
-  .claude/commands/init-harness.md .claude/commands/cambio.md .claude/commands/juzgar-pr.md .claude/commands/handoff.md .claude/rules/workflow-routing.md \
-  .opencode/agents/explorador.md .opencode/agents/mecanico.md .opencode/agents/contexto-largo.md \
-  .opencode/agents/revisor-gratis.md .opencode/agents/revisor-fuerte.md \
-  .opencode/commands/ejecutar-cambio.md .opencode/commands/handoff.md \
-  scripts/riesgo.sh scripts/cambio.sh scripts/instalar-frameworks.sh scripts/inventario.sh scripts/doctor.sh scripts/github-setup.sh \
-  .harness/rutas-alto.txt .harness/rutas-bajo.txt .harness/openspec-config.base.yaml .harness/permisos-arquitecto.txt .harness/protegidas-ejecutor.txt \
-  .claude/settings.json scripts/guardia_claude.py scripts/arq scripts/ejec .opencode/plugins/guardia.ts \
-  .githooks/_lib.sh .githooks/pre-commit .githooks/commit-msg .githooks/pre-push .github/workflows/proceso.yml \
-  .claude/commands/descubrir.md .opencode/commands/resumir-modulos.md \
-  docs/harness/MAPA.md docs/harness/DELEGACION.md \
-  .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/feature.md .github/workflows/ci.yml .github/workflows/riesgo.yml \
-  docs/harness-guide.md docs/LECCIONES.md docs/ESTADO.md docs/ONBOARDING.md; do copiar "$f"; done
-chmod +x scripts/*.sh scripts/arq scripts/ejec scripts/guardia_claude.py .githooks/* 2>/dev/null || true
+  .claude/settings.json .claude/rules/workflow-routing.md \
+  .claude/commands/descubrir.md .claude/commands/init-harness.md .claude/commands/cambio.md .claude/commands/juzgar-pr.md .claude/commands/handoff.md .claude/commands/ruta.md \
+  .opencode/agents/explorador.md .opencode/agents/mecanico.md .opencode/agents/contexto-largo.md .opencode/agents/recolector.md \
+  .opencode/agents/revisor-gratis.md .opencode/agents/revisor-fuerte.md .opencode/agents/revisor-bmad.md \
+  .opencode/commands/ejecutar-cambio.md .opencode/commands/resumir-modulos.md .opencode/commands/recolectar.md .opencode/commands/revisar-artefacto.md .opencode/commands/ruta.md .opencode/commands/handoff.md \
+  .opencode/plugins/guardia.ts .harness/openspec-config.base.yaml \
+  .githooks/pre-commit .githooks/commit-msg .githooks/pre-push \
+  scripts/harness.py scripts/test_harness.py scripts/guardia_claude.py scripts/arq scripts/ejec \
+  scripts/riesgo.sh scripts/cambio.sh scripts/nuevo.sh scripts/estado.sh scripts/instalar-frameworks.sh scripts/inventario.sh scripts/doctor.sh scripts/github-setup.sh \
+  .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/feature.md \
+  .github/workflows/ci.yml .github/workflows/riesgo.yml .github/workflows/proceso.yml .github/workflows/harness-selftest.yml \
+  docs/harness-guide.md docs/LECCIONES.md docs/DECISIONES.md docs/ONBOARDING.md docs/harness/MAPA.md docs/harness/DELEGACION.md; do copiar "$f"; done
+chmod +x scripts/*.sh scripts/*.py scripts/arq scripts/ejec .githooks/* 2>/dev/null || true
+( cd "$DEST" && python3 scripts/harness.py sync >/dev/null && python3 scripts/harness.py estado >/dev/null ) && echo "  adaptadores y docs/ESTADO.md generados desde harness.json"
 git config core.hooksPath .githooks && echo "  git hooks activos (.githooks)"
 
 # AGENTS.md y CLAUDE.md: si existen, no se pisan; se añade el import/sección al final.

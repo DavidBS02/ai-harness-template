@@ -4,13 +4,18 @@ Vas a aplicar la configuración del harness al repo actual. Si aún no corriste 
 
 1. **openspec/config.yaml.** Fusiónalo con `.harness/openspec-config.base.yaml`:
    - Si el repo ya tiene `context`, consérvalo **intacto**. Si está vacío, siémbralo desde el SPEC, el spine y MAPA.md (producto, stack, capas, AD-*, convenciones, "nunca entra al repo").
-   - En `rules` y `operations`, conserva las reglas existentes y añade las marcadas `[harness]` que falten (sección `## Harness` del proposal, tareas marcadas por el ejecutor, cierre en el runtime real, archive con ESTADO.md). No dupliques reglas equivalentes.
+   - En `rules` y `operations`, conserva las reglas existentes y añade las marcadas `[harness]` que falten (sección `## Harness` del proposal, tareas marcadas por el ejecutor, cierre en el runtime real, deudas como issues). No dupliques reglas equivalentes.
    - Verifica con `npx openspec validate --all` y que `npx openspec instructions proposal` muestre la regla `## Harness`.
 2. **AGENTS.md.** Reemplaza los placeholders `<...>` con lo real, incluidas la tabla "Puntos de entrada" (qué hace falta para que un cambio llegue al runtime), la lista "No tocar" (= zona roja) y "Nunca entra al repo". Mantenlo corto: reglas, no prosa. Si el repo ya tenía instrucciones en otro sitio (CLAUDE.md largo, `.cursor/rules`), deja una sola fuente: AGENTS.md para reglas del repo y `.claude/rules/workflow-routing.md` para el método.
-3. **Estado del proyecto.** Si alguna regla que se carga siempre contiene el estado del proyecto, deudas o cifras (por ejemplo, una sección "Estado actual" dentro de `workflow-routing.md`), **muévela** a `docs/ESTADO.md` con su estructura (changes, verificaciones diferidas, deudas con archivo dueño, decisiones vigentes) y deja la regla corta (`docs/LECCIONES.md` §8). Elimina datos personales o cifras reales de todo lo versionado. [CONFIRMAR CONMIGO antes de mover]
+3. **Estado del proyecto.** Si alguna regla que se carga siempre contiene el estado, deudas o cifras (por ejemplo, una sección "Estado actual" dentro de `workflow-routing.md`), sácalo de ahí (`docs/LECCIONES.md` §8):
+   - Cada **deuda** abierta → issue con etiqueta `deuda` (verifícala antes contra su archivo dueño; si ya está saldada, no la crees).
+   - Cada **verificación diferida** → issue con etiqueta `verificacion-diferida`.
+   - Cada **decisión vigente del usuario** → una entrada en `docs/DECISIONES.md` (append-only, con fecha).
+   - Lo demás (historia de changes) ya está en `openspec/changes/archive/`: no se copia.
+   - Luego `python3 scripts/harness.py estado` genera `docs/ESTADO.md`. Quita cifras reales y datos personales de todo lo versionado. [CONFIRMAR CONMIGO antes de mover]
 4. **Lecciones.** Si el repo tiene lecciones propias (en su harness-guide o sus reglas), llévalas a `docs/LECCIONES.md` con su origen, sin duplicar las que ya están.
-5. **Routing.** Confirma que `.harness/rutas-alto.txt` y `rutas-bajo.txt` reflejan la zona roja. Prueba `bash scripts/riesgo.sh`.
+5. **Routing.** Confirma que `zonas` en `harness.json` refleja la zona roja, y que `skills` cubre las skills instaladas (`ls .claude/skills`): cualquier skill del método que no esté listada cae por prefijo; si su clase no es la correcta, añádela. Corre `python3 scripts/harness.py sync` y prueba `scripts/riesgo.sh`.
 6. **CI.** En `.github/workflows/ci.yml`, reemplaza el paso de ejemplo con instalar + lint + test reales. El job debe llamarse `test`.
 7. **`_bmad-output/`.** Si está en `.gitignore`, propón versionar al menos los artefactos de contrato (SPEC y spine), porque OpenCode trabaja en worktrees y no ve lo ignorado (`docs/LECCIONES.md` §9). [CONFIRMAR CONMIGO]
-8. **Placeholders de modelo.** NO los inventes. Lista los que quedan (`grep -rn REEMPLAZA-CON-ID .opencode opencode.json`) y dime qué ID pegar en cada uno y de dónde sacarlo (OmniRoute → Combos / Providers).
+8. **Placeholders de modelo.** NO los inventes. Están en `harness.json` → `agentes` (`grep -n REEMPLAZA-CON-ID harness.json`). Dime qué ID pegar en cada uno y de dónde sacarlo (OmniRoute → Combos / Providers; OpenCode → /models). Después, `python3 scripts/harness.py sync`.
 9. Commit `chore: init harness de copilotos` en la rama de trabajo. Cierra con un checklist de lo que queda manual (logins, IDs de modelo, protección de main).

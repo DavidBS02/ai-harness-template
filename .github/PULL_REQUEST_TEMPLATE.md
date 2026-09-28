@@ -2,11 +2,11 @@
 <!-- una frase -->
 
 ## Change de OpenSpec
-Closes #<issue> — `openspec/changes/<id>/` (tras el archive: `openspec/changes/archive/<fecha>-<id>/`)
+Closes #<issue> (nivel ≥ 2) — `openspec/changes/<id>/` (tras el archive: `openspec/changes/archive/<fecha>-<id>/`)
 Capacidades: <creadas / modificadas>
 
-## Riesgo
-bajo | medio | alto  (proposal: __ / scripts/riesgo.sh: __ / etiqueta: __) — manda el más alto
+## Nivel y riesgo
+Nivel 0 | 1 | 2 | 3 · riesgo bajo | medio | alto (lo calcula `python3 scripts/harness.py nivel`; manda el más alto entre proposal, rutas y tamaño)
 
 ## Cómo se probó
 - [ ] Tests locales en verde (`<comando>`)
@@ -22,7 +22,7 @@ bajo | medio | alto  (proposal: __ / scripts/riesgo.sh: __ / etiqueta: __) — m
 ## Archive
 - [ ] `openspec validate --all` en verde y convenciones de deltas revisadas (docs/LECCIONES.md §1)
 - [ ] Archivado en esta rama / o PR `chore/archive-<id>` después de verificar en producción
-- [ ] `docs/ESTADO.md` al día (verificaciones diferidas y deudas contra su fuente)
+- [ ] Issues `verificacion-diferida` / `deuda` creados o cerrados con evidencia; `harness.py estado` corrido
 
 ## Notas para el arquitecto
 <!-- decisiones tomadas, dudas, riesgos (o "ver HANDOFF.md") -->

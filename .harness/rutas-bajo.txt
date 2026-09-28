@@ -1,6 +1,0 @@
-# Rutas de riesgo BAJO puro (una expresión regular por línea). Si TODO el diff cae aquí, el riesgo es bajo.
-(^|/)(docs?|tests?|__tests__|spec|specs|fixtures?)(/|$)
-\.(md|txt|json|ya?ml|toml|lock)$
-^openspec/
-^_bmad-output/
-^HANDOFF\.md$

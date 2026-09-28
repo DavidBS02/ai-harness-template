@@ -6,6 +6,8 @@ echo "Configurando $REPO"
 for l in "riesgo:bajo:0E8A16" "riesgo:medio:FBCA04" "riesgo:alto:B60205"; do
   n="${l%:*}"; c="${l##*:}"; gh label create "$n" --color "$c" --force >/dev/null && echo "  label $n"; done
 gh label create "feature" --color "1D76DB" --force >/dev/null || true
+gh label create "deuda" --color "5319E7" --description "Deuda abierta: se cierra solo tras verificar contra su archivo dueño" --force >/dev/null && echo "  label deuda"
+gh label create "verificacion-diferida" --color "0052CC" --description "Verificación que depende del futuro; si falla, change nuevo" --force >/dev/null && echo "  label verificacion-diferida"
 # Protección de main: PR obligatorio + checks ci y riesgo.
 gh api -X PUT "repos/$REPO/branches/main/protection" \
   -H "Accept: application/vnd.github+json" \

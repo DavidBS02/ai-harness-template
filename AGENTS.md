@@ -4,7 +4,8 @@
 - Qué hace: <una línea>
 - Stack: <lenguaje, framework, base de datos>
 - Contrato de producto: `_bmad-output/.../SPEC.md` (CAP-*) · Arquitectura: `_bmad-output/.../ARCHITECTURE-SPINE.md` (AD-*)
-- Verdad de lo construido: `openspec/specs/` · Contexto para la IA: `openspec/config.yaml` · Estado: `docs/ESTADO.md`
+- Verdad de lo construido: `openspec/specs/` · Contexto para la IA: `openspec/config.yaml` · Estado (generado): `docs/ESTADO.md`
+- Datos del harness (zonas, permisos, modelos, rutas por skill): `harness.json` → tabla legible en `docs/harness/RUTAS.md`
 
 ## Comandos
 - Instalar: `<comando>`
@@ -20,9 +21,10 @@
 | <ej. web app / API desplegada> | no | <comando de deploy> |
 
 ## Método (resumen; detalle en .claude/rules/workflow-routing.md)
-- BMAD planea y refina (solo en Claude Code, solo escribe en `_bmad-output/`). OpenSpec ejecuta por change.
-- Rama por change: `feat/<issue>-<change-id>`. Triviales sin change: `fix/<slug>`.
-- Cada `proposal.md` termina con `## Harness` (Issue, Riesgo, Zonas, OpenCode-zona-roja).
+- BMAD planea y refina (solo escribe en `_bmad-output/`). OpenSpec ejecuta por change. Cada skill tiene su herramienta: `python3 scripts/harness.py ruta <skill>`.
+- Niveles de ceremonia 0–3 (`docs/harness/RUTAS.md`). Ramas: `fix/<slug>` (0), `feat/<id>` (1), `feat/<n>-<id>` (2–3).
+- Cada `proposal.md` termina con `## Harness` (Issue, Nivel, Riesgo, Zonas, OpenCode-zona-roja).
+- Si el proyecto tiene un solo entorno de producción: se despliega solo desde main, uno a la vez, con respaldo previo si toca datos.
 
 ## Reglas de trabajo
 - Trabaja SOLO en la rama y worktree que te indiquen. Nunca en `main`.
@@ -40,8 +42,8 @@ Si te piden algo fuera de tu rol, no lo hagas: responde "Esto le corresponde a <
 | Si eres… | No haces | Redirige a |
 |---|---|---|
 | Claude Code (arquitecto) | implementar código de la app; mergear sin CI verde | `/cambio` → OpenCode `/ejecutar-cambio` |
-| Claude Code en una skill `bmad-*` | editar fuera de `_bmad-output/` (tampoco artefactos de un change) | entregar dossier + nombrar `/cambio` o `/opsx:update <id>` |
-| OpenCode (ejecutor) | editar proposal/design/specs, `openspec/specs/`, `config.yaml`, `_bmad*`, reglas, CI; archivar; mergear; push a main | HANDOFF.md → Claude Code |
+| Claude Code en una skill `bmad-*` | editar fuera de `_bmad-output/`; correr skills de recolectar/revisar (van a OpenCode) | entregar dossier + nombrar `/cambio` o `/opsx:update <id>` |
+| OpenCode (ejecutor) | editar proposal/design/specs, `openspec/specs/`, `config.yaml`, `_bmad*` (salvo `_bmad-output/digests/`), reglas, CI, `harness.json`; correr skills de decidir/redactar; archivar; mergear; push a main | HANDOFF.md → Claude Code |
 | Revisores | editar, implementar, arreglar | reportar hallazgos → el ejecutor corrige |
 Hay guardias técnicas (hooks y plugin) que bloquean estas acciones aunque se intenten.
 

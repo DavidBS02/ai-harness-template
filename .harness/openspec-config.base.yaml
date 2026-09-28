@@ -29,7 +29,7 @@ rules:
   proposal:
     - Citar los AD-* del spine que gobiernan el change y las capacidades de openspec/specs/ que crea o modifica.
     - Incluir una sección "Fuera de este change" con lo que queda para changes posteriores.
-    - '[harness] Terminar con la sección "## Harness" con estas líneas exactas: "Issue: #<n>", "Riesgo: bajo|medio|alto" (criterio de docs/harness/MAPA.md: rojo = auth, dinero, datos personales, migraciones/esquema, infra, secretos o código crítico sin tests), "Zonas: <rutas o módulos que toca>", "OpenCode-zona-roja: autorizado" solo si el arquitecto delega zona roja con pasos cerrados (si no, "OpenCode-zona-roja: no").'
+    - '[harness] Terminar con la sección "## Harness" con estas líneas exactas: "Issue: #<n>" (nivel ≥ 2), "Nivel: 1|2|3", "Riesgo: bajo|medio|alto" (criterio de docs/harness/MAPA.md: rojo = auth, dinero, datos personales, migraciones/esquema, infra, secretos o código crítico sin tests), "Zonas: <rutas o módulos que toca>", "OpenCode-zona-roja: autorizado" solo si el arquitecto delega zona roja con pasos cerrados (si no, "OpenCode-zona-roja: no").'
   specs:
     - Requirements y escenarios en español; SHALL/MUST y encabezados estructurales en inglés.
     - Todo encabezado bajo `## MODIFIED Requirements` debe existir literal en `openspec/specs/<cap>/spec.md` (grep y comparación carácter por carácter); un MODIFIED lleva todos los escenarios ya publicados del requisito (docs/LECCIONES.md §1).
@@ -53,5 +53,5 @@ operations:
     guidance:
       - Verificar que `npx openspec validate --all` pasa y resumir qué specs de openspec/specs/ cambiaron.
       - Revisar las 5 convenciones de deltas de docs/LECCIONES.md §1 antes de archivar.
-      - Actualizar docs/ESTADO.md verificando cada deuda contra su archivo dueño, no contra la lista (docs/LECCIONES.md §3).
+      - Deudas y verificaciones diferidas son issues de GitHub (etiquetas deuda / verificacion-diferida); cerrarlos solo tras verificar contra su archivo dueño (docs/LECCIONES.md §3). Luego python3 scripts/harness.py estado.
       - Si el change tocó algo que se sirve congelado, comprobar que el paso de publicación ocurrió después del último cambio de código (docs/LECCIONES.md §4).

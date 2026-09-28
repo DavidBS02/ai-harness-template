@@ -27,14 +27,14 @@ Verifica nombres de paquete en cada repo oficial; cambian.
 
 ## 3. OpenCode
 - `opencode` → `/connect` → OpenCode Go → pega tu API key.
-- `/models` → copia los IDs reales y corrige `opencode.json` y `.opencode/agents/*.md` si difieren de `opencode-go/glm-5.3`, `opencode-go/glm-5.3-flash`, `opencode-go/deepseek-v4.1-flash`, `opencode-go/kimi-k3`.
+- `/models` → si los IDs reales difieren de los de `harness.json` → `agentes`, corrígelos ahí y corre `python3 scripts/harness.py sync` (nunca edites a mano `opencode.json` ni los agentes).
 - NO conectes tu cuenta de Claude aquí.
 
 ## 4. OmniRoute
 - `omniroute` → abre http://localhost:20128.
 - Providers → añade SOLO por API key: NVIDIA NIM, Mistral, Google AI Studio, Groq, Cerebras, OpenRouter.
-- Combos → crea `revisor`: DeepSeek V4 (NVIDIA) → Mistral Large → Gemini Flash. Copia su ID en `opencode.json` y `.opencode/agents/revisor-gratis.md`.
-- Copia el ID de DeepSeek V4 en `.opencode/agents/revisor-fuerte.md`.
+- Combos → crea `revisor`: DeepSeek V4 (NVIDIA) → Mistral Large → Gemini Flash.
+- Pega los IDs en `harness.json` → `agentes` (`revisor-gratis` = el combo; `revisor-fuerte` y `revisor-bmad` = DeepSeek V4) y corre `python3 scripts/harness.py sync`.
 - Desactiva compresión (RTK/Caveman) para ambos.
 - Exporta `OMNIROUTE_API_KEY` en tu shell.
 - Nunca: cuenta de Claude, sesiones web de ChatGPT/Claude, OAuth de Antigravity, Gemini CLI o Kiro.
@@ -66,11 +66,11 @@ scripts/ejec
 Confirma con Claude la tabla de zonas (roja/amarilla/verde) cuando te la muestre; es la decisión más importante del setup.
 
 ## 8. Prueba de humo (un change pequeño, riesgo bajo)
-1. Claude Code: `/cambio "agregar un endpoint /health"` → issue + rama `feat/<n>-add-health-endpoint` + change de OpenSpec + PR draft.
-2. OpenCode: `cd ../wt-add-health-endpoint && scripts/ejec` → `/ejecutar-cambio add-health-endpoint`.
+1. Claude Code: `/cambio "agregar un endpoint /health"` → nivel 1 → rama `feat/add-health-endpoint` + change de OpenSpec + PR draft.
+2. OpenCode: `scripts/ejec` → `/ejecutar-cambio add-health-endpoint`.
 3. En el PR: etiqueta `riesgo:bajo`, comentario de la Action y checks `test`, `clasificar`, `verificar` en verde.
-4. Claude Code: `/juzgar-pr <número>` → archive + `docs/ESTADO.md` + merge.
-5. Comprueba la guardia: pídele a Claude que edite un archivo de código (debe negarse y redirigir) y a OpenCode que edite `proposal.md` (debe bloquearse).
+4. Claude Code: `/juzgar-pr <número>` → archive + issues + estado + merge.
+5. Comprueba las guardias: pídele a Claude que edite un archivo de código y que corra `bmad-deep-recon` (debe negarse y decirte dónde va), y a OpenCode que edite `proposal.md` o corra `bmad-architecture` (debe bloquearse).
 Si todo esto funciona, el harness está operativo.
 
 ## Checklist final
@@ -78,4 +78,5 @@ Si todo esto funciona, el harness está operativo.
 - [ ] `main` protegida
 - [ ] Prueba de humo mergeada
 - [ ] `openspec/config.yaml` con reglas `[harness]` y `context` sembrado
-- [ ] Estado del proyecto en `docs/ESTADO.md`, reglas siempre cargadas cortas
+- [ ] Deudas como issues, decisiones en `docs/DECISIONES.md`, reglas siempre cargadas cortas
+- [ ] `bash scripts/doctor.sh` con selftest en verde y adaptadores al día

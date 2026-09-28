@@ -15,3 +15,5 @@ openspec/config.yaml.orig
 
 # Versiones del harness pendientes de fusionar (las borra /init-harness)
 .harness/entrantes/
+__pycache__/
+*.pyc

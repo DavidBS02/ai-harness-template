@@ -5,11 +5,12 @@
 ## 2. Arquitectura en una página
 <!-- módulos principales, cómo se conectan, dónde entran datos, dónde salen -->
 
-## 3. Zonas por sensibilidad
+## 3. Zonas por alcance del daño (no por dominio: ver docs/LECCIONES.md §11)
+<!-- Primero: ¿quién usa el sistema (solo tú / equipo / clientes)? ¿cuántos entornos hay? Las regex reales van a harness.json → zonas. -->
 | Zona | Rutas | Por qué | Quién implementa | Quién revisa |
 |---|---|---|---|---|
-| 🔴 Roja | | auth, dinero, datos personales, migraciones, infra, sin tests | Claude Code (o OpenCode con spec muy cerrado) | revisor-gratis + revisor-fuerte + Luna + humano |
-| 🟡 Amarilla | | lógica de negocio, integraciones, poco cubierta por tests | OpenCode build (GLM-5.3) | revisor-gratis + revisor-fuerte |
+| 🔴 Roja | | puede filtrar credenciales, abrir acceso, corromper la única copia de los datos o romper el despliegue | Claude Code, u OpenCode con `OpenCode-zona-roja: autorizado` | revisor-gratis + revisor-fuerte + Luna + humano |
+| 🟡 Amarilla | | lógica importante (incluido dinero en un proyecto personal) cubierta por tests | OpenCode build (GLM-5.3) | revisor-gratis + revisor-fuerte |
 | 🟢 Verde | | UI simple, docs, tests, utilidades, bien cubierto por tests | OpenCode @mecanico (GLM-Flash) | revisor-gratis |
 
 ## 4. Zonas calientes (churn alto) y deuda

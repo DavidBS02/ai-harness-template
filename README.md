@@ -33,40 +33,47 @@ Primero entiende el proyecto; de ahí sale el routing.
    - **C:** está verde. Ruta BMAD: `bmad-help` → forja/brief → `bmad-spec` → `bmad-architecture` → primer `/cambio`.
 2. **Inventario mecánico** (`scripts/inventario.sh`, sin LLM).
 3. **`docs/harness/MAPA.md`:** zonas roja, amarilla y verde con rutas reales, capacidades y AD-*.
-4. **`.harness/rutas-alto.txt` y `rutas-bajo.txt`:** los datos que usa `scripts/riesgo.sh`.
+4. **`harness.json` → `zonas`:** las regex que usa el motor para calcular el riesgo (calibradas por alcance del daño).
 5. **`docs/harness/DELEGACION.md`:** qué tarea de este repo va a qué modelo, y los primeros changes.
-6. **`/init-harness`:** fusiona las reglas `[harness]` con tu `openspec/config.yaml`, llena `AGENTS.md`, mueve el estado del proyecto a `docs/ESTADO.md` y escribe el `ci.yml` real.
+6. **`/init-harness`:** fusiona las reglas `[harness]` con tu `openspec/config.yaml`, llena `AGENTS.md`, saca el estado de las reglas (deudas → issues, decisiones → `docs/DECISIONES.md`) y escribe el `ci.yml` real.
 
 ## Flujo por cambio
 
 ```
-Claude   /cambio "<idea>"          issue + rama + worktree + /opsx:propose (con ## Harness) + PR draft
+Claude   /cambio "<idea>"          nivel 1–3 · scripts/nuevo.sh (rama, issue si nivel ≥ 2) · /opsx:propose (con ## Harness) · PR draft
 Claude   /codex:adversarial-review riesgo medio/alto: Luna ataca el plan
 OpenCode /ejecutar-cambio <id>     /opsx-apply · marca tasks.md · @revisor-gratis · @revisor-fuerte · gh pr ready
 GitHub   ci · riesgo · proceso     tests · etiqueta · change + issue + revisiones según riesgo + openspec validate
-Claude   /juzgar-pr <n>            Luna si alto · checklist de archive · /opsx:archive · docs/ESTADO.md · merge
+Claude   /juzgar-pr <n>            Luna si alto · checklist de archive · /opsx:archive · issues deuda/verificación · estado · merge
 ```
 
-BMAD entra antes, en Claude Code, cuando el pedido es de producto o arquitectura, y **no ejecuta nada**: entrega un dossier y nombra el `/cambio` o el `/opsx:update` que lo aplica.
+BMAD entra antes, cuando el pedido es de producto o arquitectura, y **no ejecuta nada**: entrega un dossier y nombra el `/cambio` o el `/opsx:update` que lo aplica.
+
+**Niveles de ceremonia** (el costo sigue al tamaño): 0 directo (`fix/`, solo CI) · 1 ligero (change mínimo, una pasada de Claude) · 2 estándar · 3 completo (BMAD + tres revisiones). **Cada skill de BMAD y OpenSpec tiene su herramienta y su modelo** según su clase (decidir, redactar, recolectar, revisar, ejecutar, mecánico, prohibido): `/ruta <skill>` lo dice y las guardias lo imponen. Tabla en `docs/harness/RUTAS.md`.
+
+## Un motor, un archivo de datos
+
+Toda la lógica está en `scripts/harness.py` (Python, solo biblioteca estándar) y todos los datos en `harness.json`. Hooks de git, hook de Claude, plugin de OpenCode y Actions son envoltorios de ese motor. `python3 scripts/harness.py sync` regenera los adaptadores (`opencode.json`, modelos de los agentes, `docs/harness/RUTAS.md`, `.cursor/rules`) y CI falla si se desincronizan. La suite `scripts/test_harness.py` (20 pruebas: riesgo, niveles, proceso del PR, guardias de Claude y OpenCode, hooks por rol, rutas, sync, empaquetado) corre en el workflow `harness-selftest`.
 
 ## Estructura
 
 ```
+harness.json                 datos del harness: zonas, permisos, modelos por agente, clases y rutas por skill, niveles
 AGENTS.md                    reglas del repo (fuente única; incluye "Puntos de entrada" y "Nunca entra al repo")
 CLAUDE.md                    @AGENTS.md + @.claude/rules/workflow-routing.md + guardia de rol
 HANDOFF.md                   estado vivo de la rama
 .claude/rules/               workflow-routing.md (corta, siempre cargada)
-.claude/commands/            /descubrir /init-harness /cambio /juzgar-pr /handoff
+.claude/commands/            /descubrir /init-harness /cambio /juzgar-pr /ruta /handoff
 .claude/settings.json        hook de guardia de Claude Code
-.opencode/agents/            explorador, mecanico, contexto-largo, revisor-gratis, revisor-fuerte
-.opencode/commands/          /resumir-modulos /ejecutar-cambio /handoff
+.opencode/agents/            explorador, mecanico, contexto-largo, recolector, revisor-gratis, revisor-fuerte, revisor-bmad
+.opencode/commands/          /ejecutar-cambio /recolectar /revisar-artefacto /resumir-modulos /ruta /handoff
 .opencode/plugins/guardia.ts guardia de OpenCode
 opencode.json                modelos por defecto + proveedor OmniRoute
-.harness/                    rutas de riesgo, permisos por rol, base de openspec/config.yaml
+.harness/                    base de openspec/config.yaml
 .githooks/                   pre-commit / commit-msg / pre-push por rol
-scripts/                     bootstrap, instalar-frameworks, doctor, github-setup, inventario, riesgo, cambio, arq, ejec
-.github/                     plantillas de issue y PR; workflows ci, riesgo, proceso
-docs/                        harness-guide, LECCIONES, ESTADO, ONBOARDING, harness/ (INVENTARIO, MAPA, DELEGACION, resumenes/)
+scripts/                     harness.py (motor) + test_harness.py · bootstrap, instalar-frameworks, doctor, github-setup, nuevo, estado, inventario, riesgo, cambio, arq, ejec
+.github/                     plantillas de issue y PR; workflows ci, riesgo, proceso, harness-selftest
+docs/                        harness-guide, LECCIONES, DECISIONES (a mano) · ESTADO, harness/RUTAS (generados) · ONBOARDING · harness/ (MAPA, DELEGACION, INVENTARIO, resumenes/)
 _bmad/ _bmad-output/         BMAD (los instala instalar-frameworks.sh)
 openspec/                    OpenSpec (lo instala instalar-frameworks.sh)
 ```
@@ -76,8 +83,8 @@ openspec/                    OpenSpec (lo instala instalar-frameworks.sh)
 | Capa | Dónde | Qué bloquea |
 |---|---|---|
 | 1. Instrucciones | CLAUDE.md, AGENTS.md, workflow-routing.md | Cada agente rechaza lo que no es suyo y redirige; BMAD no ejecuta |
-| 2a. Hook de Claude | `.claude/settings.json` + `scripts/guardia_claude.py` | Claude no edita código de la app (sí `docs/`, `openspec/`, `_bmad-output/`, config del harness) |
-| 2b. Plugin de OpenCode | `.opencode/plugins/guardia.ts` | OpenCode no edita proposal, design, specs, `openspec/specs/`, `config.yaml`, BMAD, reglas ni CI; no toca zona roja sin autorización en el proposal; no archiva, no mergea, no hace push a main |
+| 2a. Hook de Claude | `.claude/settings.json` + `scripts/guardia_claude.py` | Claude no edita código de la app (sí `docs/`, `openspec/`, `_bmad-output/`, config del harness) ni corre skills de otra herramienta |
+| 2b. Plugin de OpenCode | `.opencode/plugins/guardia.ts` | OpenCode no edita proposal, design, specs, `openspec/specs/`, `config.yaml`, BMAD, reglas ni CI; no toca zona roja sin autorización en el proposal; no corre skills de decidir/redactar ni las prohibidas; no archiva, no mergea, no hace push a main |
 | 2c. Revisores | `.opencode/agents/revisor-*.md` | `edit: deny` |
 | 3. Git hooks | `.githooks/` | No se commitea fuera del rol ni se hace push a main |
 | 4. GitHub | `proceso.yml` + protección de main | No se mergea sin change, sin issue o sin las revisiones del riesgo |

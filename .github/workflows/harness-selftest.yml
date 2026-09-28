@@ -1,0 +1,14 @@
+name: harness-selftest
+on:
+  pull_request:
+    paths: ["scripts/harness.py", "scripts/test_harness.py", "harness.json", ".githooks/**", "scripts/*.sh"]
+  push:
+    branches: [main]
+    paths: ["scripts/harness.py", "scripts/test_harness.py", "harness.json"]
+jobs:
+  selftest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git config --global user.email ci@harness && git config --global user.name ci
+      - run: python3 -m unittest discover -s scripts -p 'test_*.py' -v

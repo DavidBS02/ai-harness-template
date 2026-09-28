@@ -36,3 +36,15 @@ El ejecutor trabaja en un worktree: los archivos ignorados por git no están ah�
 
 ## 10. El proceso no garantiza correctitud
 BMAD y OpenSpec dan estructura y trazabilidad; los bugs reales los atrapa la **verificación contra la realidad**. Cada tarea termina con "verificar con …" concreto.
+
+## 11. Las zonas se calibran por alcance del daño, no por dominio
+Marcar rojo todo lo que "toca dinero" dejó a un proyecto personal casi entero en rojo: todo pasaba por Claude y el reparto de trabajo desaparecía. La pregunta correcta es qué puede salir mal y a quién le afecta: filtrar credenciales, abrir acceso, corromper la única copia de los datos o romper el despliegue es rojo en cualquier proyecto; la lógica importante cubierta por tests es amarilla en un proyecto de un usuario. `/descubrir` pregunta primero quién usa el sistema y cuántos entornos hay.
+
+## 12. Lo mecánico se hace con scripts, no con el LLM
+Crear issues, ramas, worktrees, etiquetas, calcular riesgo o regenerar el estado no requiere juicio: un script lo hace sin gastar tokens y sin equivocarse. El LLM se reserva para pensar. Por eso existen `scripts/nuevo.sh`, `scripts/harness.py` y sus envoltorios.
+
+## 13. Una lista mantenida a mano es la forma más cara de guardar estado
+Deudas y verificaciones diferidas en un Markdown se desincronizan (lección 3). Como issues, se cierran con el PR que las resuelve y se consultan con `gh`; el estado se **genera** (`harness.py estado`) en vez de mantenerse. Regla: si un dato puede derivarse de otra fuente, se genera; solo se mantiene a mano lo que no se puede derivar (reglas, decisiones, contrato).
+
+## 14. Probar el paquete, no solo la lógica
+Los hooks funcionaban en todas las pruebas locales y habrían fallado en silencio al clonar: git los tenía registrados sin permiso de ejecución y el bootstrap los "arreglaba" con `chmod` en el destino. La suite del harness incluye una prueba de empaquetado (modos en git), y el workflow `harness-selftest` la corre en CI.
