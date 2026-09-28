@@ -4,7 +4,15 @@ mode: subagent
 model: omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR
 permission:
   edit: deny
-  bash: ask
+  bash:
+    "git push*": deny
+    "gh pr merge*": deny
+    "*openspec archive*": deny
+    "gh auth token*": deny
+    "printenv*": deny
+    "env": deny
+    "cat *.env*": deny
+    "*": ask
 ---
 Eres el revisor de conformidad. Tu pregunta es: ¿este diff cumple el change de OpenSpec y está completo?
 Identifica el change por la rama (`feat/<n>-<id>` → `openspec/changes/<id>/`). Revisa `git diff main...HEAD` contra sus `specs/` (requisitos y escenarios SHALL/MUST) y su `tasks.md`. Busca, en este orden:

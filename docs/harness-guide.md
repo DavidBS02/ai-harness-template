@@ -91,7 +91,8 @@ Máximo dos vueltas entre OpenCode y Claude; a la tercera, el arquitecto decide 
 
 - **Zonas por alcance del daño, no por dominio** (§11 de las lecciones). Rojo: filtrar credenciales, abrir acceso, corromper la única copia de los datos, romper el despliegue. Amarillo: lógica importante cubierta por tests (en un proyecto personal, el dinero va aquí si tiene tests). Verde: bajo impacto.
 - **Riesgo final** = el más alto entre el cálculo por rutas y tamaño y el `Riesgo:` del proposal.
-- **Revisores:** `@revisor-gratis` (combo OmniRoute) siempre con change · `@revisor-fuerte` (DeepSeek V4) si riesgo medio o alto · Luna (`/codex:review`) si alto.
+- **Revisores:** `@revisor-gratis` (combo OmniRoute) siempre con change · `@revisor-fuerte` (DeepSeek V4) si riesgo medio o alto · Luna (`/codex:review`) si alto. Cada revisión se registra con `harness.py revision registrar` sobre el commit revisado; el gate verifica que esa evidencia esté vigente. Riesgo alto, plano de control, techo duro o presupuesto agotado exigen además tu review APPROVED en GitHub sobre el HEAD.
+- **Umbrales:** 5 archivos / 300 líneas son señales para el riesgo; `max_archivos_duro` / `max_lineas_duro` son el techo real, por encima del cual el gate pide aprobación humana.
 - **Un solo entorno de producción:** despliegue solo desde main, uno a la vez, con respaldo previo si toca datos.
 
 ## 10. Guardias
@@ -103,7 +104,9 @@ Máximo dos vueltas entre OpenCode y Claude; a la tercera, el arquitecto decide 
 | Plugin de OpenCode | Editar artefactos del arquitecto (salvo `tasks.md` y digests); zona roja sin autorización; skills de decidir, redactar o prohibidas; archivar; mergear; push a main |
 | Revisores | Editar (`edit: deny`; los de BMAD, `ask` y solo digests) |
 | Git hooks | Commitear fuera del rol, push a main |
-| GitHub | Mergear sin lo que exige el nivel y el riesgo; adaptadores desincronizados |
+| GitHub (`pull_request_target`, motor y config de la base) | Mergear sin lo que exige el nivel y el riesgo; sin evidencia vigente; sin aprobación humana cuando corresponde. Bloquea el merge solo con `main` protegida |
+
+Qué es guardia y qué es barrera real, y qué falla cerrado: `docs/SEGURIDAD.md`.
 
 Override consciente: `HARNESS_OVERRIDE=1 scripts/arq` o `scripts/ejec`; queda como `Harness-Override: yes`.
 
@@ -113,6 +116,8 @@ Override consciente: `HARNESS_OVERRIDE=1 scripts/arq` o `scripts/ejec`; queda co
 |---|---|
 | `AGENTS.md` (reglas del repo) | `docs/harness/RUTAS.md`, `opencode.json`, modelos de los agentes, `.cursor/rules/harness.mdc` (`harness.py sync`) |
 | `harness.json` (datos del harness) | `docs/ESTADO.md` (`harness.py estado`, desde `openspec/` e issues) |
+| `.harness/versiones.json` (versiones fijadas) | `.harness/telemetria.jsonl` (`harness.py telemetria registrar`, al mergear) |
+| | `.harness/revisiones/` (evidencia, la escribe `harness.py revision registrar`) |
 | `openspec/`, `_bmad-output/` (producto) | |
 | `docs/DECISIONES.md` (append-only) y `docs/LECCIONES.md` | |
 | Issues `deuda` y `verificacion-diferida` | |

@@ -1,5 +1,7 @@
-// Guardia de rol de OpenCode (ejecutor). Delgada a propósito: toda la lógica está en scripts/harness.py
-// (guard_opencode) y se prueba con scripts/test_harness.py. Verifica los nombres de herramienta con tu versión de OpenCode.
+// Guardia de rol de OpenCode (ejecutor). Delgada: la lógica está en scripts/harness.py (guard_opencode),
+// probada en scripts/test_harness.py. Política fail-closed: si el motor no responde, se BLOQUEA la herramienta.
+// Límite conocido (docs/SEGURIDAD.md): OpenCode no pasa por este hook las llamadas de subagentes (issue anomalyco/opencode#5894);
+// para ellos quedan los permisos del agente, el contenedor y los git hooks.
 import { execFileSync } from "child_process"
 import { join } from "path"
 
@@ -16,9 +18,10 @@ export const Guardia = async ({ directory }: { directory: string }) => ({
       })
       r = JSON.parse(out)
     } catch (e: any) {
-      // Si el motor falla, no dejamos pasar en silencio: los git hooks siguen protegiendo al commitear.
-      console.error("[harness] guardia no disponible:", e?.message ?? e)
-      return
+      throw new Error(
+        `⛔ Harness: el guardia no respondió (${e?.message ?? e}); por seguridad se bloquea ${input?.tool}. ` +
+          `Corre scripts/doctor.sh. Salto consciente: HARNESS_OVERRIDE=1 (queda registrado).`,
+      )
     }
     if (r.block) throw new Error(r.msg)
   },

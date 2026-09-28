@@ -70,11 +70,12 @@ Revisiones por riesgo: bajo → Revisión 1 · medio → + Revisión 2 · alto �
 
 ## Zonas
 **Alto (rojo):**
-- `(^|/)(auth|login|session|oauth)(/|$|\.)`
-- `(^|/)(secrets?|credentials?)(/|$|\.)|(^|/)\.env`
-- `(^|/)(migrations?|migrate)(/|$|\.)`
-- `(^|/)(infra|terraform|k8s|helm)(/|$)|(^|/)Dockerfile`
-- `^\.github/workflows/`
+- `(^|/)(auth|login|session|oauth|permissions?|rbac|iam)(/|$|\.)`
+- `(^|/)(payments?|billing|checkout|invoic\w*)(/|$|\.)`
+- `(^|/)(secrets?|credentials?|crypto|encryption)(/|$|\.)|(^|/)\.env`
+- `(^|/)(migrations?|migrate)(/|$|\.)|\.sql$`
+- `(^|/)(infra|terraform|k8s|helm|deploy)(/|$)|(^|/)Dockerfile|(^|/)docker-compose[^/]*$`
+- `^\.github/`
 - `(^|/)deploy[^/]*$`
 
 **Bajo (sin código de producción):**
@@ -83,6 +84,7 @@ Revisiones por riesgo: bajo → Revisión 1 · medio → + Revisión 2 · alto �
 - `^openspec/`
 - `^_bmad-output/`
 - `^HANDOFF\.md$`
+- `^\.harness/(revisiones/|telemetria\.jsonl$)`
 
 ## Modelos por agente de OpenCode
 | Agente | Modelo |

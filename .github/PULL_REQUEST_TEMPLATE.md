@@ -13,11 +13,14 @@ Nivel 0 | 1 | 2 | 3 · riesgo bajo | medio | alto (lo calcula `python3 scripts/h
 - [ ] CI en verde
 - [ ] Verificado contra la realidad: <qué se observó y dónde>
 
-## Revisiones
-- [ ] Revisión 1 (@revisor-gratis, combo OmniRoute): <resumen o "sin hallazgos críticos">
-- [ ] Revisión 2 (@revisor-fuerte, DeepSeek V4) — solo riesgo medio/alto: <resumen o "no aplica">
-- [ ] Revisión 3 (/codex:review, GPT-6 Luna) — solo riesgo alto: <resumen o "no aplica">
-- [ ] OK final de Claude Code (/juzgar-pr)
+## Revisiones (evidencia)
+Las casillas NO cuentan. El check `verificar` lee los registros de `.harness/revisiones/<rama>/`, atados al commit revisado.
+Pega aquí la salida de `python3 scripts/harness.py revision listar`:
+
+```
+<salida>
+```
+Riesgo alto o plano de control: además, tu review **APPROVED** en GitHub sobre el último commit.
 
 ## Archive
 - [ ] `openspec validate --all` en verde y convenciones de deltas revisadas (docs/LECCIONES.md §1)

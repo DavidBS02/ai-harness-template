@@ -1,36 +1,49 @@
 name: riesgo
+# Igual que proceso: motor y configuración de la rama base (pull_request_target); el PR solo se lee.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 permissions:
-  pull-requests: write
   contents: read
+  pull-requests: write   # etiquetar y comentar
 jobs:
   clasificar:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha }}" }
+        with: { ref: "${{ github.event.pull_request.base.sha }}", path: _base, persist-credentials: false }
+      - uses: actions/checkout@v7
+        with: { ref: "${{ github.event.pull_request.head.sha }}", path: pr, fetch-depth: 0, persist-credentials: false }
       - id: r
+        working-directory: pr
         env:
-          HARNESS_BRANCH: ${{ github.head_ref }}
+          HARNESS_BRANCH: ${{ github.event.pull_request.head.ref }}
+          HARNESS_CONFIG: ${{ github.workspace }}/_base/harness.json
         run: |
-          git fetch -q origin ${{ github.base_ref }}
-          python3 scripts/harness.py nivel origin/${{ github.base_ref }} > nivel.json
-          echo "riesgo=$(python3 -c 'import json;print(json.load(open("nivel.json"))["riesgo"]["riesgo"])')" >> "$GITHUB_OUTPUT"
-          echo "nivel=$(python3 -c 'import json;print(json.load(open("nivel.json"))["nivel"])')" >> "$GITHUB_OUTPUT"
-          { echo "detalle<<EOF"; python3 -c 'import json;print(json.load(open("nivel.json"))["riesgo"]["detalle"])'; echo "EOF"; } >> "$GITHUB_OUTPUT"
+          git fetch -q origin "${{ github.base_ref }}"
+          python3 ../_base/scripts/harness.py nivel "origin/${{ github.base_ref }}" > "$RUNNER_TEMP/nivel.json"
+          python3 - "$RUNNER_TEMP/nivel.json" >> "$GITHUB_OUTPUT" << 'PY'
+          import json, sys
+          n = json.load(open(sys.argv[1]))
+          print(f"riesgo={n['riesgo']['riesgo']}")
+          print(f"nivel={n['nivel']}")
+          print(f"control={'si' if n['riesgo']['control'] else 'no'}")
+          print("detalle<<EOF"); print(n['riesgo']['detalle']); print("EOF")
+          PY
       - uses: actions/github-script@v9
         env:
           RIESGO: ${{ steps.r.outputs.riesgo }}
           NIVEL: ${{ steps.r.outputs.nivel }}
+          CONTROL: ${{ steps.r.outputs.control }}
           DETALLE: ${{ steps.r.outputs.detalle }}
         with:
           script: |
-            const r = process.env.RIESGO, n = process.env.NIVEL, d = process.env.DETALLE;
-            const req = { bajo: 'Revisión 1 (si hay change) + CI', medio: 'Revisión 1 + Revisión 2 + CI', alto: 'Revisión 1 + 2 + 3 (Luna) + lectura humana + CI' }[r];
+            const r = process.env.RIESGO, n = process.env.NIVEL, d = process.env.DETALLE, control = process.env.CONTROL === 'si';
+            const req = { bajo: 'evidencia de Revisión 1 (si hay change) + OK final + CI',
+                          medio: 'evidencia de Revisión 1 y 2 + OK final + CI',
+                          alto: 'evidencia de Revisión 1, 2 y 3 (Luna) + OK final + tu review APPROVED en GitHub + CI' }[r];
             const { owner, repo } = context.repo, issue_number = context.issue.number;
-            for (const l of ['riesgo:bajo','riesgo:medio','riesgo:alto']) { try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: l }); } catch {} }
-            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [`riesgo:${r}`] });
+            for (const l of ['riesgo:bajo','riesgo:medio','riesgo:alto','plano-de-control']) { try { await github.rest.issues.removeLabel({ owner, repo, issue_number, name: l }); } catch {} }
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [`riesgo:${r}`].concat(control ? ['plano-de-control'] : []) });
             await github.rest.issues.createComment({ owner, repo, issue_number,
-              body: `**Nivel ${n} · riesgo ${r}** — revisiones requeridas: ${req}\n\n<details><summary>detalle</summary>\n\n${d}\n</details>` });
+              body: `**Nivel ${n} · riesgo ${r}**${control ? ' · ⚠️ toca el plano de control' : ''} — requerido: ${req}\n\nLa evidencia se registra con \`python3 scripts/harness.py revision registrar\`; las casillas del PR no cuentan.\n\n<details><summary>detalle</summary>\n\n${d}\n</details>` });

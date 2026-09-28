@@ -1,2 +1,11 @@
 #!/usr/bin/env bash
-exec python3 "$(git rev-parse --show-toplevel)/scripts/harness.py" hook pre-push "$@"
+# Evalúa con el motor y la configuración COMMITEADOS (HEAD), no con el árbol de trabajo:
+# modificar scripts/harness.py o harness.json sin commitear no debilita este hook (docs/SEGURIDAD.md, escenario C).
+R="$(git rev-parse --show-toplevel)"
+if git cat-file -e HEAD:scripts/harness.py 2>/dev/null; then
+  T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
+  git show HEAD:scripts/harness.py > "$T/harness.py"
+  python3 "$T/harness.py" hook pre-push "$@"
+else
+  exec python3 "$R/scripts/harness.py" hook pre-push "$@"
+fi

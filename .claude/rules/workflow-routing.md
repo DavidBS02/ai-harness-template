@@ -23,6 +23,9 @@ Toda skill que no esté en `harness.json` está **bloqueada en ambas herramienta
 ## Tokens de BMAD
 Una sesión por workflow (`/clear` antes). Modelo mediano para redactar, el más capaz solo para decidir. Lectura masiva y reviews → OpenCode. Carga solo los AD-* y CAP-* que tocan.
 
+## Evidencia y seguridad
+Revisiones: `harness.py revision registrar` sobre el commit revisado (las casillas no cuentan). Plano de control, riesgo alto, techo duro o presupuesto agotado: aprobación humana en GitHub. Qué es guardia y qué es barrera real: `docs/SEGURIDAD.md`.
+
 ## Fuentes de verdad
 Intención: `_bmad-output/` · Construido: `openspec/specs/` · Contexto IA: `openspec/config.yaml` · Reglas: `AGENTS.md` · Datos del harness: `harness.json` · Decisiones: `docs/DECISIONES.md` · Deudas: issues `deuda` (se cierran solo tras verificar contra su archivo dueño).
 

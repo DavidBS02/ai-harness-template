@@ -20,13 +20,13 @@ for f in HANDOFF.md opencode.json harness.json \
   .opencode/agents/explorador.md .opencode/agents/mecanico.md .opencode/agents/contexto-largo.md .opencode/agents/recolector.md \
   .opencode/agents/revisor-gratis.md .opencode/agents/revisor-fuerte.md .opencode/agents/revisor-bmad.md \
   .opencode/commands/ejecutar-cambio.md .opencode/commands/resumir-modulos.md .opencode/commands/recolectar.md .opencode/commands/revisar-artefacto.md .opencode/commands/ruta.md .opencode/commands/handoff.md \
-  .opencode/plugins/guardia.ts .harness/openspec-config.base.yaml \
+  .opencode/plugins/guardia.ts .harness/openspec-config.base.yaml .harness/versiones.json .github/CODEOWNERS \
   .githooks/pre-commit .githooks/commit-msg .githooks/pre-push \
   scripts/harness.py scripts/test_harness.py scripts/guardia_claude.py scripts/arq scripts/ejec scripts/ejec-contenedor .harness/contenedor/Dockerfile \
   scripts/riesgo.sh scripts/cambio.sh scripts/nuevo.sh scripts/estado.sh scripts/instalar-frameworks.sh scripts/inventario.sh scripts/doctor.sh scripts/github-setup.sh \
   .github/PULL_REQUEST_TEMPLATE.md .github/ISSUE_TEMPLATE/feature.md \
   .github/workflows/ci.yml .github/workflows/riesgo.yml .github/workflows/proceso.yml .github/workflows/harness-selftest.yml .github/dependabot.yml .env.example \
-  docs/harness-guide.md docs/LECCIONES.md docs/DECISIONES.md docs/ONBOARDING.md docs/ESTANDAR-PROYECTO.md docs/PRUEBA-DE-HUMO.md docs/harness/MAPA.md docs/harness/DELEGACION.md; do copiar "$f"; done
+  docs/harness-guide.md docs/LECCIONES.md docs/DECISIONES.md docs/ONBOARDING.md docs/ESTANDAR-PROYECTO.md docs/PRUEBA-DE-HUMO.md docs/SEGURIDAD.md docs/harness/MAPA.md docs/harness/DELEGACION.md; do copiar "$f"; done
 chmod +x scripts/*.sh scripts/*.py scripts/arq scripts/ejec scripts/ejec-contenedor .githooks/* 2>/dev/null || true
 ( cd "$DEST" && python3 scripts/harness.py sync >/dev/null && python3 scripts/harness.py estado >/dev/null ) && echo "  adaptadores y docs/ESTADO.md generados desde harness.json"
 git config core.hooksPath .githooks && echo "  git hooks activos (.githooks)"

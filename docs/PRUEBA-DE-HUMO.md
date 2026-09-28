@@ -39,6 +39,10 @@ Las pruebas 3.2, 3.3, 3.5 y 3.6 son **críticas**: verifican cómo cada herramie
 | 3.10 | OpenCode | `@revisor-gratis hola` (desde el contenedor) | Responde el combo de OmniRoute | Revisa `OMNIROUTE_API_KEY`, que OmniRoute corra y los IDs de `harness.json` |
 | 3.11 | Claude | `/codex:review` sobre un diff pequeño | Responde GPT-6 Luna | Si Luna no aparece en Free, anótalo: el revisor 3 pasa a ser `@revisor-fuerte` hasta decidir |
 
+| 3.12 | Terminal | Rompe `harness.json` (`echo '{' > harness.json`) y pídele a Claude que lea `README.md` | Bloqueado: "el guardia falló … se bloquea" (fail-closed). Restaura con `git checkout harness.json` | Si pasa, el hook no termina en `|| exit 2` |
+| 3.13 | Contenedor | `scripts/ejec-contenedor --shell`, luego `cat .env; echo x >> scripts/harness.py` | `.env` vacío; escritura rechazada (solo lectura) | Revisa los montajes `:ro` del script |
+| 3.14 | GitHub | En un PR de prueba, marca todas las casillas sin registrar evidencia | `verificar` falla: "Falta evidencia de Revisión 1" | Si pasa, el workflow no está en `pull_request_target` |
+
 Si corriges una prueba crítica, vuelve a correr la suite y sube el arreglo al repo base con su prueba en `scripts/test_harness.py`.
 
 ## 4. Descubrimiento e init-harness
@@ -93,6 +97,9 @@ Anota cuánto tomó cada paso y dónde dudaste: es lo que más sirve para ajusta
 | 3.11 Luna en Codex Free | | | |
 | 4. Descubrir + init-harness | | | |
 | 5. Cambio nivel 1 completo | | | |
+| 3.12 Fail-closed con config rota | | | |
+| 3.13 Contenedor: secretos y control de solo lectura | | | |
+| 3.14 Casilla falsa rechazada | | | |
 | 6. Clon limpio + proyecto verde | | | |
 
 Si algo falla, este es el orden para arreglarlo:

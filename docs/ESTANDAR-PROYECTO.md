@@ -72,6 +72,12 @@ El aislamiento sigue al riesgo: Claude Code corre en tu Mac con su sandbox; Open
 - Trae `git`, `gh` y `python3`, que necesitan los git hooks y los comandos del harness. `scripts/ejec-contenedor --rebuild` actualiza OpenCode.
 - Máximo aislamiento (código de clientes, agentes en modo autónomo): una máquina virtual con OrbStack o UTM en vez del contenedor.
 
+**Plano de control y aprobación humana** (`docs/SEGURIDAD.md` §4):
+
+- Los agentes no editan guardias, hooks, workflows, permisos ni `harness.json` (salvo `/clasificar-skill` e `/init-harness`), y todo PR que los toque exige tu review APPROVED.
+- Para poder aprobar, los agentes deben usar una **cuenta máquina** con su propio token *fine-grained*; tu cuenta queda en `github.aprobadores_humanos`. GitHub no deja aprobar el PR propio.
+- Sin `main` protegida (repo privado gratuito), el gate avisa pero no bloquea el merge.
+
 **Secretos:**
 
 - `.env` siempre en `.gitignore`; en el repo solo `.env.example` sin valores reales.
@@ -107,7 +113,8 @@ Nada llega a `main` sin pasar todos los gates de su nivel. Los gates viven en CI
 
 **Dependencias:**
 
-- Versiones fijadas con lockfile versionado; OpenSpec fijado exacto.
+- Versiones fijadas con lockfile versionado; las del harness en `.harness/versiones.json` (sin `latest`). Upgrades deliberados: `docs/SEGURIDAD.md` §6.
+- Acciones de GitHub fijadas por SHA: `python3 scripts/harness.py fijar-acciones --aplicar`.
 - Dependabot semanal (`.github/dependabot.yml`, con `github-actions` ya incluido; `/init-harness` agrega el ecosistema del stack). El check `proceso` no les exige change ni revisiones: basta CI en verde y tu merge manual.
 - Antes de agregar un paquete: mantenimiento activo, licencia compatible y que no duplique algo que ya hay.
 
@@ -115,13 +122,14 @@ Nada llega a `main` sin pasar todos los gates de su nivel. Los gates viven en CI
 
 - Máximo 5 archivos o 300 líneas (umbrales de `harness.json`); si es más grande, se divide el change.
 - Commits pequeños en imperativo que explican el porqué; squash merge a `main`.
-- Plantilla de PR completa: nivel y riesgo, change, cómo se probó, revisiones marcadas, archive.
+- Plantilla de PR completa: nivel y riesgo, change, cómo se probó, evidencia de revisión (`harness.py revision listar`), archive. Las casillas no cuentan.
+- 5 archivos / 300 líneas son señales de riesgo; el techo duro (`max_*_duro` en `harness.json`) exige aprobación humana.
 
 **Definición de hecho** (todo cambio con change):
 
 - [ ] CI en verde en todos los gates.
 - [ ] Verificado contra la realidad, no solo con tests: se observó el comportamiento donde corre.
-- [ ] Revisiones que exige su riesgo, marcadas en el PR.
+- [ ] Evidencia de las revisiones que exige su riesgo, vigente sobre el último commit de código (`harness.py revision listar`).
 - [ ] Change archivado con el checklist de deltas (`docs/LECCIONES.md` §1).
 - [ ] Deudas y verificaciones diferidas abiertas o cerradas como issues, con evidencia.
 - [ ] `openspec/config.yaml` y `AGENTS.md` al día si cambió stack, capas o convenciones.

@@ -1,19 +1,23 @@
 {
-  "version": "0.4.0",
+  "version": "0.5.0",
   "_doc": "Fuente única de datos del harness. La leen scripts/harness.py, los git hooks, el hook de Claude, el plugin de OpenCode y las Actions. Tras editarla: python3 scripts/harness.py sync",
   "umbrales": {
     "archivos": 5,
     "lineas": 300,
-    "trivial_lineas": 20
+    "trivial_lineas": 20,
+    "max_archivos_duro": 40,
+    "max_lineas_duro": 1500,
+    "_doc": "archivos/lineas: señales de riesgo. max_*_duro: techo real; por encima, el gate exige aprobación humana."
   },
   "zonas": {
     "_doc": "Regex sobre rutas relativas. Calibra por ALCANCE DEL DAÑO, no por dominio (docs/LECCIONES.md §11). Las escribe /descubrir.",
     "alto": [
-      "(^|/)(auth|login|session|oauth)(/|$|\\.)",
-      "(^|/)(secrets?|credentials?)(/|$|\\.)|(^|/)\\.env",
-      "(^|/)(migrations?|migrate)(/|$|\\.)",
-      "(^|/)(infra|terraform|k8s|helm)(/|$)|(^|/)Dockerfile",
-      "^\\.github/workflows/",
+      "(^|/)(auth|login|session|oauth|permissions?|rbac|iam)(/|$|\\.)",
+      "(^|/)(payments?|billing|checkout|invoic\\w*)(/|$|\\.)",
+      "(^|/)(secrets?|credentials?|crypto|encryption)(/|$|\\.)|(^|/)\\.env",
+      "(^|/)(migrations?|migrate)(/|$|\\.)|\\.sql$",
+      "(^|/)(infra|terraform|k8s|helm|deploy)(/|$)|(^|/)Dockerfile|(^|/)docker-compose[^/]*$",
+      "^\\.github/",
       "(^|/)deploy[^/]*$"
     ],
     "bajo": [
@@ -21,7 +25,8 @@
       "\\.(md|txt)$",
       "^openspec/",
       "^_bmad-output/",
-      "^HANDOFF\\.md$"
+      "^HANDOFF\\.md$",
+      "^\\.harness/(revisiones/|telemetria\\.jsonl$)"
     ]
   },
   "permisos": {
@@ -31,19 +36,22 @@
       "openspec/",
       "_bmad-output/",
       "_bmad/custom/",
-      ".harness/",
-      ".claude/",
-      ".opencode/",
+      ".harness/revisiones/",
+      ".harness/telemetria.jsonl",
+      ".claude/commands/",
+      ".claude/rules/",
+      ".claude/skills/",
+      ".opencode/commands/",
       ".agents/",
       ".cursor/",
-      ".github/",
-      ".githooks/",
-      "scripts/",
+      ".github/ISSUE_TEMPLATE/",
+      ".github/PULL_REQUEST_TEMPLATE.md",
+      ".github/workflows/ci.yml",
+      ".github/dependabot.yml",
       "HANDOFF.md",
       "AGENTS.md",
       "CLAUDE.md",
       "README.md",
-      "opencode.json",
       "harness.json"
     ],
     "ejecutor_no_puede": [
@@ -53,17 +61,19 @@
       "^openspec/changes/[^/]+/(proposal|design)\\.md$",
       "^openspec/changes/[^/]+/specs/",
       "^_bmad/",
-      "^_bmad-output/(?!digests/)",
       "^docs/harness/(MAPA|DELEGACION)\\.md$",
       "^docs/(DECISIONES|LECCIONES|harness-guide)\\.md$",
-      "^\\.harness/",
       "^(AGENTS|CLAUDE)\\.md$",
       "^harness\\.json$",
       "^\\.claude/",
       "^\\.opencode/",
       "^opencode\\.json$",
       "^\\.github/workflows/",
-      "^\\.githooks/"
+      "^\\.githooks/",
+      "^\\.harness/(?!revisiones/|telemetria\\.jsonl$)",
+      "^_bmad-output/(?!digests/)",
+      "^scripts/",
+      "^\\.github/"
     ]
   },
   "agentes": {
@@ -192,5 +202,180 @@
   ],
   "skills_libres_doc": "Las skills no listadas en 'skills' se BLOQUEAN en ambas herramientas hasta clasificarlas con /clasificar-skill en Claude Code.",
   "skills_por_prefijo_doc": "Solo sugerencia para analizar-skill; NO enruta.",
-  "skills_motivos": {}
+  "skills_motivos": {},
+  "secretos": {
+    "_doc": "Rutas y comandos que ningún agente puede leer ni imprimir. Guardias de Claude y OpenCode, contenedor (enmascarados) y pre-commit.",
+    "rutas": [
+      "(^|/)\\.env$",
+      "(^|/)\\.env\\.[^/]+$",
+      "(^|/)\\.(ssh|aws|kube|gnupg)(/|$)",
+      "(^|/)\\.config/gh(/|$)",
+      "(^|/)\\.docker/config\\.json$",
+      "(^|/)\\.(npmrc|netrc|pypirc|git-credentials)$",
+      "\\.(pem|key|p12|pfx|keystore|jks)$",
+      "(^|/)id_(rsa|dsa|ecdsa|ed25519)$",
+      "(^|/)(credentials|service-account[^/]*|client_secret[^/]*)\\.json$"
+    ],
+    "excepto": [
+      "(^|/)\\.env\\.(example|sample|template)$",
+      "\\.pub$"
+    ],
+    "globs": [
+      "\\.env(?!\\.(example|sample|template))",
+      "\\.(ssh|aws|kube|gnupg)\\b",
+      "id_(rsa|dsa|ecdsa|ed25519)\\b",
+      "\\.(pem|p12|pfx)\\b"
+    ],
+    "comandos": [
+      "\\bprintenv\\b",
+      "(^|[\\s;&|(])(env|set|export\\s+-p|declare\\s+-x)(\\s*$|\\s*[;&|)])",
+      "\\$\\{?[A-Za-z_]*(TOKEN|SECRET|PASSWORD|PASSWD|API_KEY|APIKEY|PRIVATE_KEY|CREDENTIAL)[A-Za-z_]*\\}?",
+      "/proc/[^\\s]*/environ",
+      "\\bgh\\s+auth\\s+token\\b",
+      "\\bsecurity\\s+find-(generic|internet)-password\\b"
+    ],
+    "contenido": [
+      "gh[pousr]_[A-Za-z0-9]{36,}",
+      "github_pat_[A-Za-z0-9_]{22,}",
+      "sk-ant-[A-Za-z0-9_-]{20,}",
+      "\\bsk-[A-Za-z0-9]{32,}",
+      "AKIA[0-9A-Z]{16}",
+      "AIza[0-9A-Za-z_-]{35}",
+      "xox[baprs]-[A-Za-z0-9-]{10,}",
+      "-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    ]
+  },
+  "control_plane": {
+    "_doc": "Archivos que controlan a los agentes. Riesgo alto siempre; el gate exige aprobación humana en el PR; ningún agente los edita salvo 'arquitecto_puede'.",
+    "rutas": [
+      "^harness\\.json$",
+      "^scripts/(harness|guardia_claude|test_harness)\\.py$",
+      "^scripts/(arq|ejec|ejec-contenedor)$",
+      "^scripts/(riesgo|cambio|bootstrap|instalar-frameworks|doctor|github-setup)\\.sh$",
+      "^\\.githooks/",
+      "^\\.github/workflows/",
+      "^\\.github/CODEOWNERS$",
+      "^\\.github/dependabot\\.yml$",
+      "^\\.claude/settings(\\.local)?\\.json$",
+      "^\\.opencode/plugins/",
+      "^\\.opencode/agents/",
+      "^opencode\\.json$",
+      "^\\.harness/(contenedor/|versiones\\.json$|openspec-config\\.base\\.yaml$)"
+    ],
+    "arquitecto_puede": [
+      "^harness\\.json$",
+      "^\\.github/workflows/ci\\.yml$",
+      "^\\.github/dependabot\\.yml$"
+    ]
+  },
+  "revisiones": {
+    "_doc": "Evidencia de revisión: registros JSON en .harness/revisiones/<rama>/ atados al commit revisado (scripts/harness.py revision registrar). Las casillas del PR ya NO cuentan.",
+    "slots": {
+      "1": [
+        "revisor-gratis"
+      ],
+      "2": [
+        "revisor-fuerte"
+      ],
+      "3": [
+        "luna",
+        "codex"
+      ],
+      "final": [
+        "arquitecto"
+      ]
+    },
+    "llm": [
+      "revisor-gratis",
+      "revisor-fuerte",
+      "revisor-bmad",
+      "luna",
+      "codex"
+    ],
+    "cambios_posteriores_permitidos": [
+      "^\\.harness/revisiones/",
+      "^\\.harness/telemetria\\.jsonl$",
+      "^HANDOFF\\.md$",
+      "^docs/(ESTADO|DECISIONES)\\.md$",
+      "^openspec/(changes|specs)/"
+    ]
+  },
+  "github": {
+    "_doc": "Aprobación humana verificable: review APPROVED en GitHub, del usuario listado, sobre el commit HEAD del PR. Requiere que los agentes usen OTRA identidad (cuenta máquina); GitHub no deja aprobar el PR propio.",
+    "aprobadores_humanos": [
+      "DavidBS02"
+    ],
+    "modo_aprobacion": "review"
+  },
+  "presupuesto": {
+    "_doc": "Límites por nivel medidos desde la evidencia (vueltas = veredictos CORREGIR; revisiones_llm = registros de revisores LLM; costo = suma autodeclarada). Al agotarse: el gate exige aprobación humana.",
+    "0": {
+      "vueltas_max": 0,
+      "revisiones_llm_max": 0,
+      "dias_max": 2,
+      "costo_usd_max": 0
+    },
+    "1": {
+      "vueltas_max": 2,
+      "revisiones_llm_max": 3,
+      "dias_max": 5,
+      "costo_usd_max": 1.0
+    },
+    "2": {
+      "vueltas_max": 3,
+      "revisiones_llm_max": 6,
+      "dias_max": 10,
+      "costo_usd_max": 3.0
+    },
+    "3": {
+      "vueltas_max": 4,
+      "revisiones_llm_max": 10,
+      "dias_max": 20,
+      "costo_usd_max": 8.0
+    }
+  },
+  "fallbacks": {
+    "_doc": "Si el modelo del agente no responde: cambia con /model al primero disponible. No es automático; ruta y doctor lo muestran.",
+    "build": [
+      "opencode-go/kimi-k3"
+    ],
+    "mecanico": [
+      "opencode-go/deepseek-v4.1-flash"
+    ],
+    "explorador": [
+      "opencode-go/glm-5.3-flash"
+    ],
+    "contexto-largo": [
+      "opencode-go/glm-5.3"
+    ],
+    "recolector": [
+      "opencode-go/deepseek-v4.1-flash"
+    ],
+    "revisor-gratis": [
+      "opencode-go/deepseek-v4.1-flash"
+    ],
+    "revisor-fuerte": [
+      "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR",
+      "opencode-go/kimi-k3"
+    ],
+    "revisor-bmad": [
+      "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR"
+    ]
+  },
+  "escalamiento": {
+    "_doc": "Reglas explícitas; nada escala solo a un modelo caro.",
+    "a_claude": [
+      "riesgo alto en zona roja sin 'OpenCode-zona-roja: autorizado'",
+      "dos veredictos CORREGIR seguidos del mismo revisor"
+    ],
+    "a_luna": [
+      "riesgo alto",
+      "crítico dudoso del revisor fuerte"
+    ],
+    "a_humano": [
+      "presupuesto agotado",
+      "cambio en el plano de control",
+      "diff por encima del techo duro"
+    ]
+  }
 }

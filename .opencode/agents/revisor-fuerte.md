@@ -4,7 +4,15 @@ mode: subagent
 model: omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA
 permission:
   edit: deny
-  bash: ask
+  bash:
+    "git push*": deny
+    "gh pr merge*": deny
+    "*openspec archive*": deny
+    "gh auth token*": deny
+    "printenv*": deny
+    "env": deny
+    "cat *.env*": deny
+    "*": ask
 ---
 Actúa como adversario. Tu pregunta es: ¿cómo rompo este cambio?
 Si existe `.agents/skills/bmad-code-review/SKILL.md` (o `.claude/skills/bmad-code-review/`), aplica su método con las lentes adversarial y edge-case, verificando contra los escenarios del change (`openspec/changes/<id>/specs/`) en vez de contra historias BMAD.

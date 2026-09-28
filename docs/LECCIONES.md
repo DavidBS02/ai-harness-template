@@ -51,3 +51,15 @@ Los hooks funcionaban en todas las pruebas locales y habrían fallado en silenci
 
 ## 15. Lo desconocido se bloquea, no se adivina
 Enrutar una skill nueva por su prefijo es adivinar: `bmad-build` empieza como cualquier skill de redacción y, sin embargo, implementa código fuera de OpenSpec. Regla: lista blanca. Una skill que no está clasificada no corre en ninguna herramienta, CI falla si hay alguna instalada sin clasificar, y la clasificación deja evidencia (`skills_motivos`). Clasificar cuesta una sesión corta una vez; una skill mal enrutada cuesta en cada uso.
+
+## 16. Un gate que se ejecuta desde el PR se puede reescribir desde el PR
+El workflow `proceso` corría el `harness.py` y el `harness.json` de la rama del PR: bastaba vaciar las zonas rojas en la misma rama para bajar el riesgo. Regla: el gate corre con `pull_request_target`, y el motor y la config vienen de la rama base; el PR solo se lee. Lo mismo en local: los hooks usan el motor de `HEAD` y los guardias la config de `origin/main`.
+
+## 17. Un guardia que falla abierto no es un guardia
+Claude Code solo bloquea cuando el hook sale con 2; una excepción de Python sale con 1 y la acción pasa. Lo mismo el plugin de OpenCode, que capturaba el error y seguía. Regla: todo guardia de acciones sensibles falla cerrado, con un mensaje que dice cómo repararlo, y se prueba rompiéndolo.
+
+## 18. Una casilla no es una revisión
+`- [x] Revisión 1` la puede escribir cualquiera. La evidencia mínima es un registro atado al commit revisado que se invalida si el código cambia después; y para lo sensible, una aprobación de otra identidad en GitHub.
+
+## 19. Documentar como límite lo que solo es una señal
+"Máximo 5 archivos / 300 líneas" se leía como límite duro y era una señal de riesgo. Regla: el README no promete controles que el código no aplica; cada control declara su nivel (política, guardia, barrera, evidencia) en `docs/SEGURIDAD.md`.

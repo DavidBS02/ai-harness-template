@@ -1,0 +1,14 @@
+{
+  "_doc": "Versiones fijadas del harness. Cambiarlas es un upgrade deliberado: PR + selftest + prueba de humo. doctor avisa si lo instalado difiere.",
+  "npm": {
+    "@fission-ai/openspec": "1.13.2",
+    "bmad-method": "6.12.0",
+    "opencode-ai": "1.18.33",
+    "omniroute": "3.8.50",
+    "@openai/codex": "0.158.0",
+    "@anthropic-ai/sandbox-runtime": "0.0.77"
+  },
+  "imagen_base": "node:22-bookworm",
+  "imagen_base_digest": "",
+  "verificado": "2026-09-28"
+}

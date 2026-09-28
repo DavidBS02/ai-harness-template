@@ -1,0 +1,11 @@
+# Plano de control: requiere review del dueño cuando la rama está protegida con "Require review from Code Owners"
+# (disponible en repos públicos o con GitHub Pro). El gate `proceso` lo exige igual vía review APPROVED.
+/harness.json                @DavidBS02
+/scripts/                    @DavidBS02
+/.githooks/                  @DavidBS02
+/.github/                    @DavidBS02
+/.claude/settings.json       @DavidBS02
+/.opencode/plugins/          @DavidBS02
+/.opencode/agents/           @DavidBS02
+/opencode.json               @DavidBS02
+/.harness/                   @DavidBS02

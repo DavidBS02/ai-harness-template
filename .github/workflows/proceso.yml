@@ -1,6 +1,9 @@
 name: proceso
+# pull_request_target: la DEFINICIÓN de este workflow y el MOTOR (scripts/harness.py + harness.json) vienen de la rama base,
+# no del PR. Un PR no puede debilitar el gate que lo evalúa (docs/SEGURIDAD.md, escenario E).
+# Seguridad: nunca se ejecuta código del PR; el PR solo se lee con git. Permisos mínimos, de solo lectura.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
@@ -10,23 +13,34 @@ jobs:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-        with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha }}" }
-      - name: Nivel, change, issue y revisiones
+      - name: Motor de la rama base
+        uses: actions/checkout@v7
+        with: { ref: "${{ github.event.pull_request.base.sha }}", path: _base, persist-credentials: false }
+      - name: PR (solo datos)
+        uses: actions/checkout@v7
+        with: { ref: "${{ github.event.pull_request.head.sha }}", path: pr, fetch-depth: 0, persist-credentials: false }
+      - name: Nivel, change, issue, evidencia de revisión y aprobación humana
+        working-directory: pr
         env:
           HARNESS_BRANCH: ${{ github.event.pull_request.head.ref }}
+          HARNESS_CONFIG: ${{ github.workspace }}/_base/harness.json
           BODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           git fetch -q origin "${{ github.base_ref }}"
-          printf '%s' "$BODY" > body.txt
-          python3 scripts/harness.py proceso --base "origin/${{ github.base_ref }}" --body-file body.txt
+          printf '%s' "$BODY" > "$RUNNER_TEMP/body.txt"
+          python3 ../_base/scripts/harness.py proceso --base "origin/${{ github.base_ref }}" \
+            --body-file "$RUNNER_TEMP/body.txt" --pr "${{ github.event.pull_request.number }}" \
+            --head-sha "${{ github.event.pull_request.head.sha }}"
       - name: Skills instaladas clasificadas
-        run: python3 scripts/harness.py skills --check
-      - name: Adaptadores al día con harness.json
-        run: python3 scripts/harness.py sync --check
-      - name: OpenSpec validate
+        working-directory: pr
+        env: { HARNESS_CONFIG: "${{ github.workspace }}/_base/harness.json" }
+        run: python3 ../_base/scripts/harness.py skills --check
+      - name: OpenSpec validate (versión fijada en la rama base)
+        working-directory: pr
         run: |
           if [ -d openspec ]; then
-            V=$(node -p "try{require('./package.json').devDependencies['@fission-ai/openspec']||'latest'}catch(e){'latest'}" 2>/dev/null || echo latest)
+            V=$(python3 -c "import json;print(json.load(open('../_base/.harness/versiones.json'))['npm']['@fission-ai/openspec'])")
             npx --yes "@fission-ai/openspec@$V" validate --all
           fi

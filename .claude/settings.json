@@ -10,15 +10,35 @@
   },
   "sandbox": {
     "filesystem": {
-      "denyRead": ["./.env", "~/.ssh", "~/.config/gh", "~/.aws"]
+      "denyRead": [
+        "./.env",
+        "~/.ssh",
+        "~/.config/gh",
+        "~/.aws"
+      ],
+      "denyWrite": [
+        "./harness.json",
+        "./scripts",
+        "./.githooks",
+        "./.github/workflows",
+        "./.claude/settings.json",
+        "./.opencode/plugins",
+        "./.opencode/agents",
+        "./opencode.json",
+        "./.harness/contenedor",
+        "./.harness/versiones.json"
+      ]
     }
   },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Skill",
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Skill|Read|Grep|Glob|NotebookRead|LS",
         "hooks": [
-          { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/scripts/guardia_claude.py\"" }
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}/scripts/guardia_claude.py\" || exit 2"
+          }
         ]
       }
     ]

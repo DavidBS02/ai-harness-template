@@ -55,7 +55,7 @@ BMAD entra antes, cuando el pedido es de producto o arquitectura, y **no ejecuta
 
 ## Un motor, un archivo de datos
 
-Toda la lógica está en `scripts/harness.py` (Python, solo biblioteca estándar) y todos los datos en `harness.json`. Hooks de git, hook de Claude, plugin de OpenCode y Actions son envoltorios de ese motor. `python3 scripts/harness.py sync` regenera los adaptadores (`opencode.json`, modelos de los agentes, `docs/harness/RUTAS.md`, `.cursor/rules`) y CI falla si se desincronizan. La suite `scripts/test_harness.py` (20 pruebas: riesgo, niveles, proceso del PR, guardias de Claude y OpenCode, hooks por rol, rutas, sync, empaquetado) corre en el workflow `harness-selftest`.
+Toda la lógica está en `scripts/harness.py` (Python, solo biblioteca estándar) y todos los datos en `harness.json`. Hooks de git, hook de Claude, plugin de OpenCode y Actions son envoltorios de ese motor. `python3 scripts/harness.py sync` regenera los adaptadores (`opencode.json`, modelos de los agentes, `docs/harness/RUTAS.md`, `.cursor/rules`) y CI falla si se desincronizan. La suite `scripts/test_harness.py` (pruebas de riesgo, niveles, proceso del PR, evidencia, aprobación humana, presupuesto, guardias, secretos, plano de control, fail-closed, rutas, versiones y los escenarios adversariales de `docs/SEGURIDAD.md`) corre en el workflow `harness-selftest`.
 
 ## Estructura
 
@@ -80,27 +80,32 @@ _bmad/ _bmad-output/         BMAD (los instala instalar-frameworks.sh)
 openspec/                    OpenSpec (lo instala instalar-frameworks.sh)
 ```
 
-## Guardias de rol
+## Seguridad: qué está garantizado
 
-| Capa | Dónde | Qué bloquea |
+Detalle, modelo de amenazas y riesgos residuales en [`docs/SEGURIDAD.md`](docs/SEGURIDAD.md). Resumen honesto:
+
+| Control | Qué hace | Garantía |
 |---|---|---|
-| 1. Instrucciones | CLAUDE.md, AGENTS.md, workflow-routing.md | Cada agente rechaza lo que no es suyo y redirige; BMAD no ejecuta |
-| 2a. Hook de Claude | `.claude/settings.json` + `scripts/guardia_claude.py` | Claude no edita código de la app (sí `docs/`, `openspec/`, `_bmad-output/`, config del harness) ni corre skills de otra herramienta |
-| 2b. Plugin de OpenCode | `.opencode/plugins/guardia.ts` | OpenCode no edita proposal, design, specs, `openspec/specs/`, `config.yaml`, BMAD, reglas ni CI; no toca zona roja sin autorización en el proposal; no corre skills de decidir/redactar ni las prohibidas; no archiva, no mergea, no hace push a main |
-| 2c. Revisores | `.opencode/agents/revisor-*.md` | `edit: deny` |
-| 3. Git hooks | `.githooks/` | No se commitea fuera del rol ni se hace push a main |
-| 4. GitHub | `proceso.yml` + protección de main | No se mergea sin change, sin issue o sin las revisiones del riesgo |
+| Guardias de Claude y OpenCode | Bloquean leer o imprimir secretos, editar código (Claude), artefactos del arquitecto (OpenCode), el plano de control y skills de otra herramienta. Fallan **cerrados** | Guardia: se basa en patrones |
+| Contenedor del ejecutor | Secretos del repo montados como `/dev/null`; plano de control en solo lectura; sin `~/.ssh` ni llavero | Barrera del sistema operativo (la red **no** está restringida) |
+| Sandbox de Claude (`/sandbox`) | `denyRead` de secretos y `denyWrite` del plano de control para bash | Barrera del sistema operativo, **solo si el sandbox arranca** |
+| Git hooks | Por rol, con el motor y la config de `HEAD`; escaneo de secretos para todos | Local: se salta con `--no-verify` |
+| Gate `proceso` (`pull_request_target`) | Evalúa con el motor y el `harness.json` de la rama base; exige evidencia de revisión atada al commit y review APPROVED humana en riesgo alto, plano de control, techo duro o presupuesto agotado | Real en el servidor; **bloquea el merge solo con `main` protegida** (repo público o GitHub Pro) |
+| `ci` | Tests del stack y gitleaks | Real en el servidor |
 
-Lanza con `scripts/arq` (Claude, con `/sandbox` activo) y `scripts/ejec-contenedor` (OpenCode aislado en un contenedor; `scripts/ejec` sin contenedor). Override consciente: `HARNESS_OVERRIDE=1 scripts/arq`; queda registrado en el commit.
+Las casillas del PR no son evidencia. La evidencia son los registros de `harness.py revision registrar`, atados al commit revisado; lo que no prueban está explicado en `docs/SEGURIDAD.md` §3.
+
+Lanza con `scripts/arq` (Claude, con `/sandbox`) y `scripts/ejec-contenedor` (OpenCode aislado). Override consciente: `HARNESS_OVERRIDE=1`, queda registrado en el commit.
 
 ## Reglas que no se negocian
 
 1. La suscripción de Claude solo se usa en Claude Code. Nunca detrás de un proxy.
 2. OmniRoute solo con proveedores por API key que permitan uso personal. Nunca OAuth de Antigravity o Kiro, ni sesiones web.
 3. BMAD no ejecuta. OpenSpec es la única vía para cambiar el código.
-4. `validate` en verde no garantiza el `archive`: checklist de `docs/LECCIONES.md` §1 antes de archivar.
-5. Ningún agente afirma que los tests pasan: lo dice CI. La verificación es contra la realidad.
-6. El traspaso entre herramientas pasa por GitHub y por archivos (change, HANDOFF, ESTADO), nunca por copiar conversaciones.
-7. El harness es vivo: las mejoras vuelven a este repo base.
+4. Ningún agente modifica el plano de control (guardias, hooks, workflows, permisos, `harness.json`) sin tu aprobación verificable en GitHub.
+5. `validate` en verde no garantiza el `archive`: checklist de `docs/LECCIONES.md` §1 antes de archivar.
+6. Ningún agente afirma que los tests pasan: lo dice CI. La verificación es contra la realidad.
+7. El traspaso entre herramientas pasa por GitHub y por archivos (change, HANDOFF, ESTADO), nunca por copiar conversaciones.
+8. El harness es vivo: las mejoras vuelven a este repo base.
 
 Licencia MIT.

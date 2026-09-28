@@ -46,6 +46,8 @@ Si te piden algo fuera de tu rol, no lo hagas: responde "Esto le corresponde a <
 | OpenCode (ejecutor) | editar proposal/design/specs, `openspec/specs/`, `config.yaml`, `_bmad*` (salvo `_bmad-output/digests/`), reglas, CI, `harness.json`; correr skills de decidir/redactar; archivar; mergear; push a main | HANDOFF.md → Claude Code |
 | Revisores | editar, implementar, arreglar | reportar hallazgos → el ejecutor corrige |
 | Cualquiera | usar una skill que no está en `harness.json` | `/clasificar-skill <nombre>` en Claude Code |
+| Cualquiera | leer o imprimir secretos (`.env`, llaves, tokens del entorno); editar el plano de control | pedir al usuario el nombre de la variable; proponer el cambio en texto |
+| Cualquiera | declarar una revisión sin haber corrido al revisor | `harness.py revision registrar` con su salida real |
 Hay guardias técnicas (hooks y plugin) que bloquean estas acciones aunque se intenten.
 
 ## Método de trabajo propio del equipo (opcional)

@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
-# Lanza OpenCode (rol EJECUTOR) dentro de un contenedor que solo ve este repo (docs/ESTANDAR-PROYECTO.md §3).
+# Lanza OpenCode (rol EJECUTOR) en un contenedor que solo ve este repo (docs/SEGURIDAD.md).
 #   scripts/ejec-contenedor              abre OpenCode
 #   scripts/ejec-contenedor --shell      abre una terminal en el contenedor
-#   scripts/ejec-contenedor --rebuild    reconstruye la imagen (p. ej. para actualizar OpenCode)
-# Requisitos: Docker u OrbStack, y GH_TOKEN_AGENTES (token fine-grained limitado a los repos del proyecto).
+#   scripts/ejec-contenedor --rebuild    reconstruye la imagen (tras cambiar .harness/versiones.json)
+# Controles: los archivos secretos del repo se montan como /dev/null (vacíos, solo lectura); sin ~/.ssh ni llavero;
+# solo GH_TOKEN_AGENTES (fine-grained) y OMNIROUTE_API_KEY entran como variables. La red NO está restringida (ver pendientes).
 set -euo pipefail
 command -v docker >/dev/null || { echo "Falta Docker u OrbStack." >&2; exit 1; }
 RAIZ="$(git rev-parse --show-toplevel)"
-IMAGEN="harness-ejecutor:${OPENCODE_VERSION:-latest}"
+leer(){ python3 -c "import json,sys;d=json.load(open('$RAIZ/.harness/versiones.json'));print(eval('d'+sys.argv[1]))" "$1"; }
+OPENCODE_VERSION="$(leer "['npm']['opencode-ai']")"
+BASE="$(leer "['imagen_base']")"; DIGEST="$(leer "['imagen_base_digest']")"
+[ -n "$DIGEST" ] && BASE="${BASE%@*}@${DIGEST}" || echo "⚠️  imagen base sin digest fijado (.harness/versiones.json)." >&2
+IMAGEN="harness-ejecutor:${OPENCODE_VERSION}"
 CMD=(opencode)
 for a in "$@"; do case "$a" in --shell) CMD=(bash);; --rebuild) docker rmi -f "$IMAGEN" >/dev/null 2>&1 || true;; esac; done
-docker image inspect "$IMAGEN" >/dev/null 2>&1 || docker build -t "$IMAGEN" --build-arg "OPENCODE_VERSION=${OPENCODE_VERSION:-latest}" "$RAIZ/.harness/contenedor"
+docker image inspect "$IMAGEN" >/dev/null 2>&1 || docker build -t "$IMAGEN" --build-arg "IMAGEN_BASE=$BASE" --build-arg "OPENCODE_VERSION=$OPENCODE_VERSION" "$RAIZ/.harness/contenedor"
 [ -n "${GH_TOKEN_AGENTES:-}" ] || echo "⚠️  GH_TOKEN_AGENTES no definido: gh no funcionará dentro del contenedor (push y PRs)." >&2
 [ -n "${OMNIROUTE_API_KEY:-}" ] || echo "⚠️  OMNIROUTE_API_KEY no definido: los revisores de OmniRoute no responderán." >&2
-[ -f "$RAIZ/.env" ] && echo "ℹ️  .env existe en el repo: queda montado. Si no lo necesita el ejecutor, muévelo fuera antes." >&2
 MONTAJES=(-v "$RAIZ":"$RAIZ")
 COMUN="$(git rev-parse --path-format=absolute --git-common-dir)"
 case "$COMUN" in "$RAIZ"/*) ;; *) MONTAJES+=(-v "$COMUN":"$COMUN");; esac   # worktree: su .git vive en el repo principal
+# plano de control en SOLO LECTURA dentro del contenedor: ni el agente ni sus subagentes pueden reescribir guardias, hooks o reglas
+for c in harness.json opencode.json scripts .githooks .github .claude .opencode/plugins .opencode/agents .harness/contenedor .harness/versiones.json; do
+  [ -e "$RAIZ/$c" ] && MONTAJES+=(-v "$RAIZ/$c:$RAIZ/$c:ro")
+done
+ENMASCARADOS=0
+while IFS= read -r f; do [ -n "$f" ] && MONTAJES+=(-v "/dev/null:$f:ro") && ENMASCARADOS=$((ENMASCARADOS+1)); done < <(cd "$RAIZ" && python3 scripts/harness.py secretos-listar)
+echo "ℹ️  secretos enmascarados en el contenedor: $ENMASCARADOS" >&2
 exec docker run -it --rm "${MONTAJES[@]}" -w "$PWD" \
   -v harness-opencode-config:/root/.config/opencode \
   -v harness-opencode-data:/root/.local/share/opencode \
