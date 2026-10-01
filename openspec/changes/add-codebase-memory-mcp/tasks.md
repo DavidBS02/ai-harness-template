@@ -1,5 +1,17 @@
 > **Cómo se ejecuta este change.** Casi todo es plano de control, que el contenedor monta en solo lectura, así que el ejecutor corre **fuera del contenedor y con override**: `HARNESS_OVERRIDE=1 scripts/ejec` → `/ejecutar-cambio add-codebase-memory-mcp`. Los commits quedan marcados con `Harness-Override: yes` y el PR exige aprobación humana.
 > El grupo 0 lo hace el arquitecto en el PR de la propuesta. Si una tarea revela un hueco del spec, escríbelo en HANDOFF.md y detente.
+>
+> **Plan de sesiones** (añadido tras la parada del 2026-10-01, `docs/LECCIONES.md` §20). Una sesión NUEVA de OpenCode por fila; al terminar cada una: commit, `/handoff`, `/exit`. Los tests del grupo 9 van justo después del código que verifican.
+>
+> | Sesión | Qué | Quién |
+> |---|---|---|
+> | S1 | `grupo 3,4`: terminar 3.1, luego 3.2, 3.3, 4.1–4.3 | build |
+> | S2 | 6.1, luego 9.1–9.3 (delegados a @mecanico); con ellos en verde, marcar 4.1 y 5.1–5.4 y hacer 5.5 | build + @mecanico |
+> | S3 | `grupo 7`, luego 9.4, 9.6 y 9.7 (delegados a @mecanico) | build + @mecanico |
+> | S4 | `grupo 8` (Docker) | build |
+> | S5 | 9.5, `grupo 10` (@mecanico); 11.1–11.2 (build) | @mecanico + build |
+> | S6 | Revisiones 1 y 2 (paso 3 de `/ejecutar-cambio`), 11.3 | build |
+> | Humano | 1.3, 6.1 (la parte manual) y Revisión 3 (Luna) | — |
 
 ## 0. Contrato y método (arquitecto, en esta rama)
 
@@ -21,19 +33,19 @@
 - [x] 2.2 `scripts/cbm-instalar.sh` según D3: detección de os y arch, descarga con `curl -fsSL -o` a un temporal, verificación de SHA-256, extracción a `.harness/bin/<os>-<arch>/`, idempotente, sin `install.sh` ni pipe a shell; verificar instalando en el host (código 0 y versión correcta) y con un sha256 alterado a propósito en una copia temporal de versiones.json (código ≠ 0 y nada nuevo en `.harness/bin/`)
 - [x] 2.3 `.gitignore`: `.harness/cbm/`, `.harness/bin/` y `.codebase-memory/`; verificar con `git check-ignore -v .harness/cbm/x .harness/bin/x .codebase-memory/x`
 
-## 3. Envoltorio y configuración aislada
+## 3. Envoltorio y configuración aislada (build)
 
 - [ ] 3.1 `scripts/cbm` según D4 y D5 (interruptor, resolución de binario por plataforma con comprobación de versión, caché y config por entorno `host`/`contenedor`, `verificar-secretos` al arrancar como servidor, `auto_index` y `watcher_enabled` apagados de forma idempotente, `exec "$@"`); verificar con `scripts/cbm cli --quiet list_projects` (código 0), con `habilitado:false` (código 1 y mensaje), comprobando que `~/.config/codebase-memory-mcp/config.json` no cambió (compara `stat` antes y después), y con un `.env` sin excluir (arrancar sin argumentos sale con 1 y nombra el archivo)
 - [ ] 3.2 Prueba de comportamiento de D5: con `auto_index=true` en una config «global» simulada (`HOME` temporal), arrancar `scripts/cbm` como servidor sobre un repo sin índice, esperar 10 s y cerrarlo; verificar que la caché del entorno sigue sin índice (`scripts/cbm cli --quiet list_projects` no lista el repo)
 - [ ] 3.3 Ruta con espacios: clonar el repo en un temporal con espacios en la ruta y arrancar el servidor con el `command` exacto que `sync` genera para OpenCode y para Claude (`${CLAUDE_PROJECT_DIR}` sustituido); verificar que los dos responden a `list_projects`
 
-## 4. Secretos fuera del índice
+## 4. Secretos fuera del índice (build)
 
 - [ ] 4.1 `harness.py cbm verificar-secretos` según D6 (`listar_secretos` + `git -c core.excludesFile=.cbmignore check-ignore --no-index -q`); código 0 si todo está excluido, 1 nombrando los archivos si no; verificar con el test 9.3
 - [ ] 4.2 Invalidación de D6: guardar `cbmignore.sha256` tras cada indexado correcto; si difiere, borrar la caché del entorno antes de indexar; verificar con el test 9.6
 - [ ] 4.3 Prueba real: con `.env` y `tmp/x.pem` de prueba en el repo, indexar y buscar con `scripts/cbm cli --quiet search_code` el contenido de esos archivos; verificar que no aparecen y borrar los archivos de prueba
 
-## 5. Adaptadores generados por sync
+## 5. Adaptadores generados por sync (build)
 
 - [ ] 5.1 `sync` genera o retira `.mcp.json` (solo `mcpServers.codebase-memory`, conservando otros servidores y borrando el archivo si queda vacío) según D1; verificar con el test 9.1
 - [ ] 5.2 `sync` genera o retira en `opencode.json` las claves `mcp.codebase-memory`, `tools["codebase-memory_<w>"]=false` y `agent.<a>.tools[...]=true` para `agentes_escritura` según D1, sin tocar otras claves; verificar con el test 9.1
@@ -41,22 +53,22 @@
 - [ ] 5.4 `generar_rutas` añade a `docs/harness/RUTAS.md` una sección «Memoria de código» (estado, versión, quién escribe); verificar con `python3 scripts/harness.py sync && grep -n "Memoria de código" docs/harness/RUTAS.md`
 - [ ] 5.5 Correr `python3 scripts/harness.py sync` y commitear los adaptadores generados; verificar con `python3 scripts/harness.py sync --check` (código 0)
 
-## 6. Claude Code
+## 6. Claude Code (build)
 
 - [ ] 6.1 `.claude/settings.json`: `permissions.deny` con 4 reglas literales (`mcp__codebase-memory__index_repository`, `mcp__codebase-memory__delete_project`, `mcp__codebase-memory__manage_adr` y `mcp__codebase-memory__ingest_traces`, sin llaves ni comodines), `enabledMcpjsonServers: ["codebase-memory"]` y `sandbox.filesystem.denyWrite` con `./.mcp.json`, `./.cbmignore` y `./scripts` (ya está); verificar con el test 9.2 y, en una sesión de Claude Code, que `delete_project` se deniega y `list_projects` responde (manual)
 
-## 7. Re-indexado
+## 7. Re-indexado (build)
 
 - [ ] 7.1 `scripts/cbm-indexar.sh [--fondo]` según D7 (interruptor, lock por entorno con mkdir y PID y limpieza de huérfanos, `verificar-secretos`, invalidación, `index_repository`, log en `.harness/cbm/<entorno>/ultimo-indexado.log`); verificar en primer plano (código 0) y con `--fondo` (vuelve en < 1 s, `time bash scripts/cbm-indexar.sh --fondo`)
 - [ ] 7.2 `.githooks/post-merge` y `.githooks/post-checkout` (este último solo con `$3 = 1` y sin rebase en curso), ejecutables, siempre `exit 0` y sin salida; verificar con el test 9.7 y a mano: `git switch -c tmp-cbm && git switch -` (log nuevo), `git checkout -- README.md` (sin log nuevo), `git worktree add ../wt-cbm -b tmp-wt` (log nuevo en `../wt-cbm/.harness/cbm/host/`), un `git rebase` (sin indexado a mitad) y con el binario renombrado (git no muestra errores)
 - [ ] 7.3 Dos disparos seguidos no lanzan dos indexados; verificar con `bash scripts/cbm-indexar.sh --fondo; bash scripts/cbm-indexar.sh --fondo; pgrep -fc "index_repository"` (≤ 1)
 
-## 8. Contenedor del ejecutor
+## 8. Contenedor del ejecutor (build)
 
 - [ ] 8.1 `.harness/contenedor/Dockerfile` según D8 (`curl` en apt, build-args sin defecto, `sha256sum -c`, instalación en `/usr/local/bin` y `ENV HARNESS_CONTENEDOR=1`); verificar además que dentro del contenedor la caché es `.harness/cbm/contenedor/`; verificar con `scripts/ejec-contenedor --rebuild --shell` → `scripts/cbm cli --quiet list_projects` (manual)
 - [ ] 8.2 `scripts/ejec-contenedor`: build-args desde `versiones.json`, etiqueta `harness-ejecutor:<opencode>-cbm<cbm>` y `.mcp.json` y `.cbmignore` en los montajes de solo lectura; verificar con `docker image ls harness-ejecutor` tras la build y cambiando la versión en una copia local (pide build nueva sin `--rebuild`)
 
-## 9. Selftest (`scripts/test_harness.py`)
+## 9. Selftest (`scripts/test_harness.py`) (@mecanico)
 
 - [ ] 9.1 Tests de `sync`: encendido genera `.mcp.json`, las claves de `opencode.json` y `.cbmignore`; apagado los retira; conserva otros servidores y claves; `sync --check` detecta la deriva; verificar con `python3 -m unittest discover -s scripts -p 'test_*.py'`
 - [ ] 9.2 Test: `.claude/settings.json → permissions.deny` contiene literalmente `mcp__<servidor>__<w>` para cada herramienta de `herramientas_escritura` (sin llaves ni comodines), y `opencode.json` las veta globalmente y las abre solo a `agentes_escritura`; verificar con el selftest
@@ -66,13 +78,13 @@
 - [ ] 9.7 Test de hooks con el mismo binario falso: `post-checkout` con `$3=0` no lanza nada; con `$3=1` lanza; con `.git/rebase-merge` presente no lanza; dos disparos seguidos con el lock tomado lanzan uno; los dos hooks salen con 0 aunque `cbm-indexar.sh` falle; verificar con el selftest
 - [ ] 9.5 Ampliar `TestEmpaquetado` y `test_contenedor_monta_control_plane_solo_lectura` con los nuevos scripts, hooks y montajes; verificar con el selftest
 
-## 10. Diagnóstico y empaquetado
+## 10. Diagnóstico y empaquetado (@mecanico; 10.1 build)
 
 - [ ] 10.1 `doctor` según el requisito «Diagnóstico de la memoria de código» (binario y versión, `verificar-secretos`, hooks ejecutables, existencia del índice; apagado → una línea ok); `harness.py versiones` lista también `binarios`; verificar con `python3 scripts/harness.py doctor` en los dos estados del interruptor
 - [ ] 10.2 `scripts/bootstrap.sh` (archivos nuevos y líneas de `.gitignore`) e `instalar-frameworks.sh` (llama a `cbm-instalar.sh` si está encendido), según D9; verificar con el test 11.1
 - [ ] 10.3 Actualizar el docstring de uso de `harness.py` con el subcomando `cbm`; verificar con `python3 scripts/harness.py | grep cbm`
 
-## 11. Prueba de humo e integración
+## 11. Prueba de humo e integración (build)
 
 - [ ] 11.1 `bash scripts/bootstrap.sh "$(mktemp -d)/demo"` → en el destino: `python3 scripts/harness.py sync --check`, `bash scripts/cbm-instalar.sh`, `bash scripts/cbm-indexar.sh` y `scripts/cbm cli --quiet list_projects` muestra el repo; verificar con la salida pegada en HANDOFF.md
 - [ ] 11.2 Selftest completo y doctor en verde en este repo; verificar con `python3 scripts/harness.py doctor --tests`

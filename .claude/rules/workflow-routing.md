@@ -20,8 +20,9 @@ Entrega un **dossier**, no un diff. No escribe código ni config, no crea ramas 
 ## Skills nuevas: lista blanca
 Toda skill que no esté en `harness.json` está **bloqueada en ambas herramientas**. Se clasifica una vez, en Claude Code, con `/clasificar-skill <nombre>` (hechos con `harness.py analizar-skill`, propuesta con evidencia, confirmación del usuario). OpenCode no puede clasificar.
 
-## Tokens de BMAD
-Una sesión por workflow (`/clear` antes). Modelo mediano para redactar, el más capaz solo para decidir. Lectura masiva y reviews → OpenCode. Carga solo los AD-* y CAP-* que tocan.
+## Tokens
+BMAD: una sesión por workflow (`/clear` antes). Modelo mediano para redactar, el más capaz solo para decidir. Lectura masiva y reviews → OpenCode. Carga solo los AD-* y CAP-* que tocan.
+Changes: ≤ ~12 tareas (si no, se parten). OpenCode: una sesión nueva por grupo de tareas, @mecanico para lo mecánico, tests enfocados (`docs/LECCIONES.md` §20).
 
 ## Evidencia y seguridad
 Revisiones: `harness.py revision registrar` sobre el commit revisado (las casillas no cuentan). Plano de control, riesgo alto, techo duro o presupuesto agotado: aprobación humana en GitHub. Qué es guardia y qué es barrera real: `docs/SEGURIDAD.md`.

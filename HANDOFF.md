@@ -7,7 +7,8 @@
 - Decisiones tomadas y por qué: ver abajo («Hallazgos técnicos»).
 - Dudas para el arquitecto: ver abajo.
 - Riesgos: cambio grande del plano de control; el PR exige aprobación humana en GitHub.
-- Siguiente paso sugerido: retomar por la verificación restante de 3.1, correr el selftest completo sobre el árbol actual y luego 3.2/3.3; después commitear por bloques (grupo 3+4.1, grupo 5) con sus marcas en tasks.md.
+- Siguiente paso sugerido: seguir el **Plan de sesiones** de `tasks.md` (S1 = `/ejecutar-cambio add-codebase-memory-mcp grupo 3,4` en una sesión nueva). Retomar por la verificación restante de 3.1.
+- Nota del arquitecto (2026-10-01): `ignorar` en `harness.json` pasó de `.ssh/`, `.aws/`, `.kube/`, `.gnupg/`, `.config/gh/` a la forma sin barra (cubre archivo y directorio; cierra la «frontera conocida» de abajo). El `.cbmignore` sin commitear está desactualizado: corre `python3 scripts/harness.py sync` antes de verificar 4.x y antes de 5.5.
 
 ## Estado de los commits
 

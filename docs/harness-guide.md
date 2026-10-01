@@ -44,6 +44,12 @@ Cada skill de BMAD y OpenSpec pertenece a una **clase**, y la clase decide herra
 - **Lo mecánico con scripts** (`docs/LECCIONES.md` §12): `scripts/nuevo.sh <id> --nivel N [--issue "título"] [--worktree]` crea issue, rama y worktree sin gastar tokens.
 - **Worktree solo si trabajas en paralelo.** Si no, una rama en el checkout normal basta.
 - **Lotes:** varios triviales en un PR `chore/lote-<fecha>`.
+- **Economía de la ejecución** (`docs/LECCIONES.md` §20). El costo de un agente es *contexto acumulado × pasos*, no tamaño del diff:
+  - **Changes de ≤ ~12 tareas**; si no, se parten. Tareas en grupos de ≤ 5, cada grupo etiquetado `(build)` o `(@mecanico)`.
+  - **Una sesión de OpenCode por grupo:** `/ejecutar-cambio <id> grupo N`, `/exit` y sesión nueva. Las revisiones van en su propia sesión al final.
+  - **Modelo por costo:** `build` (GLM-5.3) para lo que exige diseño o toca seguridad; `@mecanico` (GLM-Flash) para tests, docs, empaquetado y repetición; `@explorador` para buscar. Claude solo decide y juzga.
+  - **Leer poco:** `grep` y rangos, no archivos enteros; tests enfocados por tarea y la suite completa al cerrar el grupo; tres fallos seguidos → HANDOFF.md y parar.
+  - **Para cortar una sesión en marcha:** Esc (dos veces si no para), pedir commit de lo marcado y HANDOFF.md, luego `/exit`.
 
 ## 4. Árbol de decisión por pedido
 

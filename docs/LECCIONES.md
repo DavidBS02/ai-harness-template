@@ -63,3 +63,12 @@ Claude Code solo bloquea cuando el hook sale con 2; una excepción de Python sal
 
 ## 19. Documentar como límite lo que solo es una señal
 "Máximo 5 archivos / 300 líneas" se leía como límite duro y era una señal de riesgo. Regla: el README no promete controles que el código no aplica; cada control declara su nivel (política, guardia, barrera, evidencia) en `docs/SEGURIDAD.md`.
+
+## 20. El costo de un agente es contexto × pasos, no tamaño del diff
+*Origen: change `add-codebase-memory-mcp` (2026-10-01). Con 36 tareas en 8 subsistemas y artefactos de ~11 000 tokens, GLM-5.3 gastó el 52 % de la ventana de 5 h de OpenCode Go en el 15 % de las tareas.* Cada llamada a una herramienta reenvía el contexto acumulado: una sesión larga cuesta mucho más que varias cortas con el mismo trabajo, y un change grande no ahorra por tener un solo proposal. Reglas, que hoy son **política** (las aplican los comandos `/cambio` y `/ejecutar-cambio`, no el motor; ver §19):
+- **Changes de ≤ ~12 tareas** del ejecutor; si no, se parten.
+- **Grupos de ≤ 5 tareas** etiquetados `(build)` o `(@mecanico)`, y una sesión de OpenCode por grupo.
+- **Modelo por costo:** Flash para tests, docs y repetición; GLM-5.3 para diseño y seguridad; Claude solo para decidir y juzgar.
+- **Leer rangos, no archivos enteros**; tests enfocados y la suite al cerrar el grupo; tres fallos seguidos → HANDOFF.md y parar.
+- **Artefactos concisos:** el design lleva decisiones y evidencia, no repite el spec.
+- **La revisión adversarial del plan se paga sola**: en el mismo change encontró dos fallos críticos de diseño antes de escribir código. No se recorta; lo que se recorta es la longitud de las sesiones.
