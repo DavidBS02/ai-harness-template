@@ -338,7 +338,7 @@
     }
   },
   "modelo_por_riesgo": {
-    "_doc": "Política (docs/LECCIONES.md §21), la aplica /ejecutar-cambio con /model; el motor no la impone. Al empezar cada sesión: `python3 scripts/harness.py riesgo` (manda el más alto entre proposal, rutas y tamaño) y se usa el modelo de esta tabla. Si con el modelo de bajo/medio una verificación falla 3 veces, se escala al de 'alto' para esa tarea y se anota en HANDOFF.md.",
+    "_doc": "Política (docs/LECCIONES.md §21), la aplica /ejecutar-cambio pidiendo el cambio con /models (selector de OpenCode); el motor no la impone. Al empezar cada sesión: `python3 scripts/harness.py riesgo` (manda el más alto entre proposal, rutas y tamaño) y se usa el modelo de esta tabla. Si con el modelo de bajo/medio una verificación falla 3 veces, se escala al de 'alto' para esa tarea y se anota en HANDOFF.md.",
     "build": {
       "bajo": "opencode-go/deepseek-v4.1-flash",
       "medio": "opencode-go/deepseek-v4.1-flash",
@@ -346,7 +346,7 @@
     }
   },
   "fallbacks": {
-    "_doc": "Si el modelo del agente no responde: cambia con /model al primero disponible. No es automático; ruta y doctor lo muestran.",
+    "_doc": "Si el modelo del agente no responde: cambia con /models (selector de OpenCode) al primero disponible. No es automático; ruta y doctor lo muestran.",
     "build": [
       "opencode-go/deepseek-v4-pro",
       "opencode-go/mimo-v2.6-pro",
