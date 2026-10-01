@@ -20,7 +20,7 @@ Cada skill de BMAD y OpenSpec pertenece a una **clase**, y la clase decide herra
 |---|---|---|---|
 | decidir | Claude, el más capaz | `bmad-architecture`, `bmad-spec`, `bmad-prd`, propose/archive/sync/update | Lo que se vuelve contrato |
 | redactar | Claude, el mediano | brief, forja, elicitación, PM, UX, épicas, sprint, explore, `bmad-project-context` | Redactar no requiere el modelo más caro |
-| recolectar | OpenCode `recolector` (Kimi K3) | `bmad-deep-recon` | Lectura masiva: deja un digest en `_bmad-output/digests/` |
+| recolectar | OpenCode `recolector` | `bmad-deep-recon` | Lectura masiva: deja un digest en `_bmad-output/digests/` |
 | revisar | OpenCode `revisor-bmad` (DeepSeek V4) | `bmad-review`, `bmad-code-review`, `bmad-walkthrough` | Lo más caro de BMAD, y mejor con otra familia |
 | ejecutar / mecánico | OpenCode `build` / `mecanico` | apply de OpenSpec, `bmad-qa-generate-e2e-tests` | Implementar es volumen |
 | prohibido | ninguna | `bmad-build`, `bmad-build-auto`, `bmad-agent-dev` | Implementan fuera de OpenSpec: rompen "BMAD no ejecuta" |
@@ -47,7 +47,7 @@ Cada skill de BMAD y OpenSpec pertenece a una **clase**, y la clase decide herra
 - **Economía de la ejecución** (`docs/LECCIONES.md` §20). El costo de un agente es *contexto acumulado × pasos*, no tamaño del diff:
   - **Changes de ≤ ~12 tareas**; si no, se parten. Tareas en grupos de ≤ 5, cada grupo etiquetado `(build)` o `(@mecanico)`.
   - **Una sesión de OpenCode por grupo:** `/ejecutar-cambio <id> grupo N`, `/exit` y sesión nueva. Las revisiones van en su propia sesión al final.
-  - **Modelo por costo:** `build` (GLM-5.3) para lo que exige diseño o toca seguridad; `@mecanico` (GLM-Flash) para tests, docs, empaquetado y repetición; `@explorador` para buscar. Claude solo decide y juzga.
+  - **Modelo por costo:** `build` para lo que exige diseño o toca seguridad; `@mecanico` (el más barato) para tests, docs, empaquetado y repetición; `@explorador` para buscar. Claude solo decide y juzga. Los modelos se eligen por **precio de lectura de caché** y peticiones por ventana de 5 h, no por precio de entrada (`docs/LECCIONES.md` §21); la asignación vigente está en `docs/harness/RUTAS.md`.
   - **Leer poco:** `grep` y rangos, no archivos enteros; tests enfocados por tarea y la suite completa al cerrar el grupo; tres fallos seguidos → HANDOFF.md y parar.
   - **Para cortar una sesión en marcha:** Esc (dos veces si no para), pedir commit de lo marcado y HANDOFF.md, luego `/exit`.
 
@@ -143,7 +143,7 @@ Efímero: `HANDOFF.md`, que se vacía al mergear. Regla: si un dato puede deriva
 Configuración paso a paso: `docs/ESTANDAR-PROYECTO.md`; verificación: `docs/PRUEBA-DE-HUMO.md`.
 
 - Límite de Claude Pro 3 o más veces por semana → baja niveles, mueve más BMAD a recolectar/revisar, o Max 5x.
-- Límite de Go a diario → GLM Coding Plan Lite o Go + Lite.
+- Límite de Go a diario → primero revisa el precio de caché de los modelos de `agentes` (`docs/LECCIONES.md` §21) y el largo de las sesiones; si sigue, Go Plus.
 - Luna se queda corto seguido → ChatGPT Go o Plus.
 - Un proveedor de OmniRoute cambia sus términos → quítalo.
 - Más de unas pocas horas al mes arreglando el harness → simplifícalo.

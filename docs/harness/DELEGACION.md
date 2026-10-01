@@ -4,11 +4,11 @@ Regla general del harness: Claude piensa, OpenCode ejecuta, revisores gratis rev
 
 | Tipo de tarea en este repo | Ejemplo concreto | Modelo/agente | Revisión mínima |
 |---|---|---|---|
-| Tests y docs de zona verde | | OpenCode @mecanico (GLM-Flash) | revisor-gratis |
-| Feature en zona verde | | OpenCode build (GLM-5.3) | revisor-gratis |
+| Tests y docs de zona verde | | OpenCode @mecanico | revisor-gratis |
+| Feature en zona verde | | OpenCode build | revisor-gratis |
 | Feature en zona amarilla | | OpenCode build + spec detallado | revisor-gratis + revisor-fuerte |
 | Cambio en zona roja | | OpenCode solo con `OpenCode-zona-roja: autorizado` y tareas cerradas; si no, Claude con override | + Luna + humano |
-| Refactor grande / lectura de todo un módulo | | OpenCode contexto-largo (Kimi K3) resume → Claude decide | según zona |
+| Refactor grande / lectura de todo un módulo | | OpenCode contexto-largo resume → Claude decide | según zona |
 | Bug atascado | | Claude Code + /codex:rescue | según zona |
 | Producto, PRD, arquitectura, cambiar un AD | | BMAD en Claude Code (dossier → /cambio) | — |
 

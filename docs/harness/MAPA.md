@@ -10,8 +10,8 @@
 | Zona | Rutas | Por qué | Quién implementa | Quién revisa |
 |---|---|---|---|---|
 | 🔴 Roja | | puede filtrar credenciales, abrir acceso, corromper la única copia de los datos o romper el despliegue | Claude Code, u OpenCode con `OpenCode-zona-roja: autorizado` | revisor-gratis + revisor-fuerte + Luna + humano |
-| 🟡 Amarilla | | lógica importante (incluido dinero en un proyecto personal) cubierta por tests | OpenCode build (GLM-5.3) | revisor-gratis + revisor-fuerte |
-| 🟢 Verde | | UI simple, docs, tests, utilidades, bien cubierto por tests | OpenCode @mecanico (GLM-Flash) | revisor-gratis |
+| 🟡 Amarilla | | lógica importante (incluido dinero en un proyecto personal) cubierta por tests | OpenCode build | revisor-gratis + revisor-fuerte |
+| 🟢 Verde | | UI simple, docs, tests, utilidades, bien cubierto por tests | OpenCode @mecanico | revisor-gratis |
 
 ## 4. Zonas calientes (churn alto) y deuda
 <!-- de INVENTARIO.md + lectura; qué se rompe seguido y por qué -->

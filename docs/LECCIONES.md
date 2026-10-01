@@ -68,7 +68,14 @@ Claude Code solo bloquea cuando el hook sale con 2; una excepción de Python sal
 *Origen: change `add-codebase-memory-mcp` (2026-10-01). Con 36 tareas en 8 subsistemas y artefactos de ~11 000 tokens, GLM-5.3 gastó el 52 % de la ventana de 5 h de OpenCode Go en el 15 % de las tareas.* Cada llamada a una herramienta reenvía el contexto acumulado: una sesión larga cuesta mucho más que varias cortas con el mismo trabajo, y un change grande no ahorra por tener un solo proposal. Reglas, que hoy son **política** (las aplican los comandos `/cambio` y `/ejecutar-cambio`, no el motor; ver §19):
 - **Changes de ≤ ~12 tareas** del ejecutor; si no, se parten.
 - **Grupos de ≤ 5 tareas** etiquetados `(build)` o `(@mecanico)`, y una sesión de OpenCode por grupo.
-- **Modelo por costo:** Flash para tests, docs y repetición; GLM-5.3 para diseño y seguridad; Claude solo para decidir y juzgar.
+- **Modelo por costo:** el más barato para tests, docs y repetición; `build` para diseño y seguridad; Claude solo para decidir y juzgar (cómo elegir el modelo: §21).
 - **Leer rangos, no archivos enteros**; tests enfocados y la suite al cerrar el grupo; tres fallos seguidos → HANDOFF.md y parar.
 - **Artefactos concisos:** el design lleva decisiones y evidencia, no repite el spec.
 - **La revisión adversarial del plan se paga sola**: en el mismo change encontró dos fallos críticos de diseño antes de escribir código. No se recorta; lo que se recorta es la longitud de las sesiones.
+
+## 21. En un agente se paga la caché, no la entrada
+*Origen: el mismo change. `opencode stats` de la sesión: 200 K tokens de entrada, 21 K de salida y **7,1 M de lectura de caché** (97 %), unos 85 K de contexto por paso.* El precio de entrada que muestran las tablas engaña: lo que domina es el precio de **lectura de caché** multiplicado por el contexto reenviado en cada paso. Con los precios de OpenCode Go del 2026-10-01, esa misma sesión cuesta $2,22 con GLM-5.3 (caché $0,26/M), $0,33 con DeepSeek V4 Pro ($0,022/M), $0,13 con MiMo-V2.6-Pro ($0,0036/M) y $0,05 con MiMo-V2.6-Flash ($0,0028/M). Además, la tabla de Go da a cada modelo su propio tope mensual en dólares (GLM-5.3 y DeepSeek V4 Pro: $15; los Flash: $60), con ventanas de 5 h = 20 % y semana = 50 %. Lo observado cuadra: $2,36 ≈ 78 % de la ventana de 5 h de GLM-5.3 ($3). Un modelo caro con tope bajo agota su ventana mucho antes. Regla:
+- Elige el modelo de cada agente por **precio de caché y peticiones por ventana** (tabla de opencode.ai/docs/go), no por el precio de entrada. Revísalo cuando cambien los precios.
+- Cambiar de modelo no exime de la calidad: el modelo nuevo se prueba en un grupo de tareas con tests como juez antes de darlo por bueno, y el anterior queda en `fallbacks`.
+- Los precios «Off-Peak» (DeepSeek) son de horario valle; en hora punta sube el costo.
+- Los modelos gratis (`*-free`) ahorran poco frente a uno barato de Go, y pueden tener límites cambiantes y condiciones de datos distintas. Solo en repos sin datos sensibles y en roles verificables (`@mecanico`, `@explorador`).
