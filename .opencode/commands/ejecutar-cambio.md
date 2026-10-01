@@ -3,6 +3,8 @@ description: Implementa un change de OpenSpec (un grupo de tareas por sesión), 
 ---
 Vas a implementar el change `$ARGUMENTS`. Formato: `<id>` o `<id> grupo <N>[,<M>]`.
 
+**Modelo según el riesgo (primer paso de cada sesión).** Corre `python3 scripts/harness.py riesgo` y mira `harness.json → modelo_por_riesgo.build`. Si el modelo de esta sesión no es el que toca a ese riesgo, dile al usuario exactamente: «Este change es de riesgo <r>: cambia con `/model <id>` y vuelve a lanzar el comando», y DETENTE. Riesgo bajo o medio = modelo barato; riesgo alto (zona roja o plano de control) = el modelo fuerte. Si con el barato una verificación falla 3 veces, pide al usuario escalar al de `alto` para esa tarea y anótalo en HANDOFF.md.
+
 **Economía (obligatoria).** El costo de un agente crece con *contexto acumulado × pasos*, así que:
 - **Una sesión = un grupo de `tasks.md`** (o los que diga `$ARGUMENTS`). Si no se indica grupo, haz el primero con tareas sin marcar. Al cerrar el grupo: commit, `/handoff` y DETENTE con «Grupo N listo. Siguiente: `/ejecutar-cambio <id> grupo N+1` en una sesión NUEVA».
 - **Lee HANDOFF.md primero.** Del change, lee completos solo `tasks.md` y lo que el grupo cita del design y del spec, no todo.
