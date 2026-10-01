@@ -17,9 +17,9 @@
 
 ## 2. Versión fijada e instalador
 
-- [ ] 2.1 `.harness/versiones.json → binarios.codebase-memory-mcp` con `version: "0.11.0"`, plantilla `url` y `sha256` para `darwin-amd64`, `darwin-arm64`, `linux-amd64` y `linux-arm64` (valores literales de design.md); verificar con `python3 -c "import json;print(json.load(open('.harness/versiones.json'))['binarios'])"`
-- [ ] 2.2 `scripts/cbm-instalar.sh` según D3: detección de os y arch, descarga con `curl -fsSL -o` a un temporal, verificación de SHA-256, extracción a `.harness/bin/<os>-<arch>/`, idempotente, sin `install.sh` ni pipe a shell; verificar instalando en el host (código 0 y versión correcta) y con un sha256 alterado a propósito en una copia temporal de versiones.json (código ≠ 0 y nada nuevo en `.harness/bin/`)
-- [ ] 2.3 `.gitignore`: `.harness/cbm/`, `.harness/bin/` y `.codebase-memory/`; verificar con `git check-ignore -v .harness/cbm/x .harness/bin/x .codebase-memory/x`
+- [x] 2.1 `.harness/versiones.json → binarios.codebase-memory-mcp` con `version: "0.11.0"`, plantilla `url` y `sha256` para `darwin-amd64`, `darwin-arm64`, `linux-amd64` y `linux-arm64` (valores literales de design.md); verificar con `python3 -c "import json;print(json.load(open('.harness/versiones.json'))['binarios'])"`
+- [x] 2.2 `scripts/cbm-instalar.sh` según D3: detección de os y arch, descarga con `curl -fsSL -o` a un temporal, verificación de SHA-256, extracción a `.harness/bin/<os>-<arch>/`, idempotente, sin `install.sh` ni pipe a shell; verificar instalando en el host (código 0 y versión correcta) y con un sha256 alterado a propósito en una copia temporal de versiones.json (código ≠ 0 y nada nuevo en `.harness/bin/`)
+- [x] 2.3 `.gitignore`: `.harness/cbm/`, `.harness/bin/` y `.codebase-memory/`; verificar con `git check-ignore -v .harness/cbm/x .harness/bin/x .codebase-memory/x`
 
 ## 3. Envoltorio y configuración aislada
 

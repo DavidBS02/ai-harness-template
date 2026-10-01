@@ -8,6 +8,18 @@
     "@openai/codex": "0.158.0",
     "@anthropic-ai/sandbox-runtime": "0.0.77"
   },
+  "binarios": {
+    "codebase-memory-mcp": {
+      "version": "0.11.0",
+      "url": "https://github.com/DeusData/codebase-memory-mcp/releases/download/v{version}/codebase-memory-mcp-{os}-{arch}.tar.gz",
+      "sha256": {
+        "darwin-amd64": "dbf1c73bfcbde64e7dde4cd1320da7afc02e2c972ee1789ae039521411f5132e",
+        "darwin-arm64": "4dee7f38b63740e6751d7a7ed7eb10291c1f2a3ea2415f599dc68370ca0a2d18",
+        "linux-amd64": "032b33c1833919a2d1de67ff6367fa6ea46aee8689c86ef223c88fae3b6e4536",
+        "linux-arm64": "c0e46c87cf37e35f1ac0bd9cc7e1d8b0ca4ef40034e1008805d709fa52a4e38a"
+      }
+    }
+  },
   "imagen_base": "node:22-bookworm",
   "imagen_base_digest": "",
   "verificado": "2026-09-28"

@@ -34,7 +34,7 @@ class Repo:
         shutil.copytree(BASE / ".githooks", self.dir / ".githooks")
         shutil.copytree(BASE / ".opencode", self.dir / ".opencode")
         shutil.copy(BASE / "opencode.json", self.dir / "opencode.json")
-        shutil.copytree(BASE / ".harness", self.dir / ".harness", ignore=shutil.ignore_patterns("revisiones", "telemetria.jsonl", "entrantes"))
+        shutil.copytree(BASE / ".harness", self.dir / ".harness", ignore=shutil.ignore_patterns("revisiones", "telemetria.jsonl", "entrantes", "bin", "cbm"))
         shutil.copytree(BASE / ".claude", self.dir / ".claude")
         for f in list((self.dir / ".githooks").iterdir()) + list((self.dir / "scripts").iterdir()):
             f.chmod(0o755)
@@ -465,6 +465,7 @@ class TestAutoModificacion(unittest.TestCase):
     def setUp(self):
         self.r = Repo()
         harness._CONFIABLE.clear()
+        os.environ.pop("HARNESS_OVERRIDE", None)  # el ejecutor corre la suite con override activo; el guardia in-process no debe verlo
 
     def tearDown(self):
         self.r.cerrar(); harness._CONFIABLE.clear()
