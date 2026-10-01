@@ -64,8 +64,8 @@
 
 ## 7. Re-indexado (build)
 
-- [ ] 7.1 `scripts/cbm-indexar.sh [--fondo]` según D7 (interruptor, lock con mkdir y PID y limpieza de huérfanos, `verificar-secretos`, `cbm invalidar-cache`, `index_repository`, `cbm marcar-indexado`, log en `.harness/cbm/ultimo-indexado.log`); verificar en primer plano (código 0) y con `--fondo` (vuelve en < 1 s, `time bash scripts/cbm-indexar.sh --fondo`)
-- [ ] 7.2 `.githooks/post-merge` y `.githooks/post-checkout` (este último solo con `$3 = 1` y sin rebase en curso), ejecutables, siempre `exit 0` y sin salida; verificar con el test 9.7 y a mano: `git switch -c tmp-cbm && git switch -` (log nuevo), `git checkout -- README.md` (sin log nuevo), `git worktree add ../wt-cbm -b tmp-wt` (log nuevo en `../wt-cbm/.harness/cbm/`), un `git rebase` (sin indexado a mitad) y con el binario renombrado (git no muestra errores)
+- [x] 7.1 `scripts/cbm-indexar.sh [--fondo]` según D7 (interruptor, lock con mkdir y PID y limpieza de huérfanos, `verificar-secretos`, `cbm invalidar-cache`, `index_repository`, `cbm marcar-indexado`, log en `.harness/cbm/ultimo-indexado.log`); verificar en primer plano (código 0) y con `--fondo` (vuelve en < 1 s, `time bash scripts/cbm-indexar.sh --fondo`)
+- [x] 7.2 `.githooks/post-merge` y `.githooks/post-checkout` (este último solo con `$3 = 1` y sin rebase en curso), ejecutables, siempre `exit 0` y sin salida; verificar con el test 9.7 y a mano: `git switch -c tmp-cbm && git switch -` (log nuevo), `git checkout -- README.md` (sin log nuevo), `git worktree add ../wt-cbm -b tmp-wt` (log nuevo en `../wt-cbm/.harness/cbm/`), un `git rebase` (sin indexado a mitad) y con el binario renombrado (git no muestra errores)
 
 ## 9. Selftest (`scripts/test_harness.py`) (@mecanico)
 
