@@ -380,11 +380,13 @@
   "mcp": {
     "_doc": "Servidores MCP compartidos por Claude Code y OpenCode. 'sync' genera .mcp.json (Claude) y el bloque 'mcp' de opencode.json desde aquí. La versión y los checksums están en .harness/versiones.json → binarios. Se apaga con habilitado:false + sync (docs/harness-guide.md → Memoria de código).",
     "codebase_memory": {
-      "_doc": "Memoria de código (codebase-memory-mcp). habilitado: el interruptor único. servidor: nombre del MCP y prefijo de sus herramientas (Claude: mcp__<servidor>__<tool>; OpenCode: <servidor>_<tool>). Las herramientas de escritura están vetadas POR DEFECTO para Claude y para todo agente de OpenCode; solo agentes_escritura las tiene. Indexar lo hacen además los scripts del harness: hooks post-merge/post-checkout (en segundo plano), scripts/cbm-indexar.sh (manual) y /init-harness. El servidor no indexa solo (auto_index y watcher apagados por scripts/cbm). ignorar: patrones gitignore que reflejan 'secretos' → .cbmignore; 'harness.py cbm verificar-secretos' falla si un secreto del repo quedaría indexado.",
+      "_doc": "Memoria de código (codebase-memory-mcp). habilitado: el interruptor único. servidor: nombre del MCP y prefijo de sus herramientas (Claude: mcp__<servidor>__<tool>; OpenCode: <servidor>_<tool>). cache_dir: índice compartido por TODOS los repos con harness del usuario (el servidor admite un solo daemon por usuario); estado_dir: estado local del repo (hash de exclusiones, log, lock). En OpenCode el servidor solo se ofrece a agentes_consulta (sus 17 herramientas viajan en cada paso; @mecanico y los agentes nuevos no lo reciben) y las de escritura solo a agentes_escritura (contenido en agentes_consulta). Claude consulta y tiene vetada la escritura. Solo host: en el contenedor no hay binario. Indexar lo hacen además los scripts del harness: hooks post-merge/post-checkout (en segundo plano), scripts/cbm-indexar.sh (manual) y /init-harness. El servidor no indexa solo (auto_index y watcher apagados por scripts/cbm). ignorar: patrones gitignore que reflejan 'secretos' → .cbmignore; 'harness.py cbm verificar-secretos' falla si un secreto del repo quedaría indexado.",
       "habilitado": true,
       "servidor": "codebase-memory",
       "comando": "scripts/cbm",
-      "cache_dir": ".harness/cbm",
+      "cache_dir": "${XDG_CACHE_HOME:-~/.cache}/ai-harness/cbm",
+      "estado_dir": ".harness/cbm",
+      "agentes_consulta": ["build", "explorador", "recolector", "contexto-largo", "revisor-gratis", "revisor-fuerte", "revisor-bmad"],
       "agentes_escritura": ["build"],
       "herramientas_escritura": ["index_repository", "delete_project", "manage_adr", "ingest_traces"],
       "ignorar": [

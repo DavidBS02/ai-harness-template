@@ -7,9 +7,9 @@ Los agentes del harness (arquitecto, ejecutor y revisores) entienden el código 
 - **Interruptor en `harness.json`**: sección `mcp.codebase_memory` con `habilitado: true` por defecto, el directorio de caché, la lista de herramientas de escritura y los agentes que solo consultan. Apagarlo es `habilitado: false` seguido de `harness.py sync`.
 - **Versión fijada**: v0.11.0, con la URL de cada plataforma y su SHA-256 en `.harness/versiones.json → binarios`. Se instala descargando el `.tar.gz` de la release y verificando el checksum. Sin `install.sh` oficial y sin `curl | bash`.
 - **Adaptadores generados por `sync`**: `.mcp.json` para Claude Code, bloque `mcp` de `opencode.json`, permisos por agente de OpenCode y `.cbmignore`. Todo existe solo si el interruptor está encendido; si se apaga, `sync` los retira.
-- **Contenedor del ejecutor**: el binario fijado se instala en `.harness/contenedor/Dockerfile` con verificación de checksum. La etiqueta de la imagen incluye la versión, así que un upgrade fuerza la reconstrucción.
-- **Índice local y fuera de git**: `CBM_CACHE_DIR=.harness/cbm`, configuración aislada por repo y `auto_index` y watcher del servidor apagados. `.gitignore` ignora `.harness/cbm/`, `.harness/bin/` y `.codebase-memory/`.
-- **Mínimo privilegio, con veto por defecto**: solo el ejecutor (`build`) y los scripts del harness (hooks, `/init-harness`) escriben en el índice. Claude Code y todos los demás agentes de OpenCode tienen vetadas `index_repository`, `delete_project`, `manage_adr` e `ingest_traces`. Eso incluye a los revisores, los subagentes del template, los integrados y los que se creen después.
+- **Índice compartido entre proyectos, fuera de los repos**: una caché del harness en `~/.cache/ai-harness/cbm/`, separada de la del usuario, para que varios repos y worktrees tengan memoria a la vez (el servidor admite un solo daemon por usuario). `auto_index` y watcher del servidor apagados. En el repo solo queda estado local en `.harness/cbm/`. `.gitignore` ignora `.harness/cbm/`, `.harness/bin/` y `.codebase-memory/`.
+- **Solo en el host**: el contenedor del ejecutor queda fuera de este change (recorte del 2026-10-01).
+- **Acceso por rol, con veto por defecto**: el servidor solo se ofrece a los agentes que exploran (`build`, `explorador`, `recolector`, `contexto-largo` y los revisores); `@mecanico` y los agentes nuevos no lo reciben, porque sus 17 herramientas viajan en cada paso. Solo `build` y los scripts del harness (hooks, `/init-harness`) escriben en el índice. Claude Code consulta y tiene vetadas `index_repository`, `delete_project`, `manage_adr` e `ingest_traces`.
 - **Secretos fuera del índice**: `.cbmignore` se genera desde `secretos`. Indexar falla cerrado si algún archivo secreto del repo quedaría indexado.
 - **Re-indexado automático**: `.githooks/post-merge` y `.githooks/post-checkout` lanzan el indexado en segundo plano, sin bloquear git y sin fallar nunca. `scripts/cbm-indexar.sh` queda como comando manual de respaldo.
 - **`/init-harness`**: instala el binario en el host, verifica secretos y hace el indexado inicial.
@@ -29,6 +29,8 @@ Reglas de arquitectura de `openspec/config.yaml` que gobiernan el change: «Un m
 
 ## Fuera de este change
 
+- La memoria de código dentro del contenedor del ejecutor (`scripts/ejec-contenedor`). Recortado el 2026-10-01 por costo y velocidad; ver design.md D8.
+
 - Usar la memoria de código dentro de los prompts de los comandos (`/ejecutar-cambio`, revisores) para ahorrar lecturas. Primero se mide; va en un change posterior.
 - La persistencia del índice en el repo (`.codebase-memory/` con `persistence: true`) y compartir el índice entre máquinas.
 - La UI web (`codebase-memory-mcp-ui`), `ingest_traces` con trazas reales y el uso de ADRs del servidor (`manage_adr`) como fuente de verdad. La fuente de verdad de decisiones sigue siendo `docs/DECISIONES.md` y los AD-* de BMAD.
@@ -37,7 +39,7 @@ Reglas de arquitectura de `openspec/config.yaml` que gobiernan el change: «Un m
 
 ## Impact
 
-- Plano de control: `harness.json`, `scripts/harness.py`, `scripts/test_harness.py`, `scripts/ejec-contenedor`, `scripts/bootstrap.sh`, `scripts/instalar-frameworks.sh`, `.githooks/post-merge` y `.githooks/post-checkout` (nuevos), `.harness/versiones.json`, `.harness/contenedor/Dockerfile`, `.claude/settings.json` y `opencode.json`.
+- Plano de control: `harness.json`, `scripts/harness.py`, `scripts/test_harness.py`, `scripts/bootstrap.sh`, `scripts/instalar-frameworks.sh`, `.githooks/post-merge` y `.githooks/post-checkout` (nuevos), `.harness/versiones.json`, `.claude/settings.json`, `.opencode/agents/*.md` (modelos regenerados por sync) y `opencode.json`.
 - Nuevos: `scripts/cbm`, `scripts/cbm-instalar.sh`, `scripts/cbm-indexar.sh`, `.mcp.json` y `.cbmignore` (generados).
 - Método y docs: `.claude/commands/descubrir.md`, `.claude/commands/init-harness.md`, `docs/harness-guide.md`, `README.md`, `docs/harness/MAPA.md` (plantilla), `.gitignore` y `docs/harness/RUTAS.md` (vía sync).
 - Dependencia externa nueva: binario `codebase-memory-mcp` v0.11.0 (GitHub Releases de DeusData), verificado por SHA-256.
@@ -47,5 +49,5 @@ Reglas de arquitectura de `openspec/config.yaml` que gobiernan el change: «Un m
 - Issue: #2
 - Nivel: 3
 - Riesgo: alto
-- Zonas: plano de control (harness.json, scripts/harness.py, scripts/test_harness.py, scripts/ejec-contenedor, scripts/bootstrap.sh, scripts/instalar-frameworks.sh, .githooks/, .harness/versiones.json, .harness/contenedor/, .claude/settings.json, opencode.json), scripts/cbm*, .claude/commands/, docs/, README.md, .gitignore
+- Zonas: plano de control (harness.json, scripts/harness.py, scripts/test_harness.py, scripts/bootstrap.sh, scripts/instalar-frameworks.sh, .githooks/, .harness/versiones.json, .claude/settings.json, .opencode/agents/, opencode.json), scripts/cbm*, .claude/commands/, docs/, README.md, .gitignore
 - OpenCode-zona-roja: autorizado

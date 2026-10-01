@@ -59,12 +59,12 @@ Toda la lógica está en `scripts/harness.py` (Python, solo biblioteca estándar
 
 ## Memoria de código
 
-Claude Code y OpenCode consultan un índice local del repo ([codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp), versión fijada y verificada por SHA-256) en lugar de leer archivo por archivo. Viene **encendida**; `/descubrir` te recomienda si dejarla así.
+Claude Code y los agentes de OpenCode que exploran consultan un índice del código ([codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp), versión fijada y verificada por SHA-256) en lugar de leer archivo por archivo. Viene **encendida**; `/descubrir` te recomienda si dejarla así. Un solo índice en `~/.cache/ai-harness/cbm/` sirve a todos tus repos a la vez. Solo en el host, no dentro del contenedor.
 
 - **Apagar:** `habilitado: false` en `harness.json → mcp.codebase_memory` → `python3 scripts/harness.py sync` → reinicia las herramientas.
 - **Encender:** `habilitado: true` → `sync` → `bash scripts/cbm-instalar.sh` → `bash scripts/cbm-indexar.sh`.
 - Se re-indexa sola, en segundo plano, tras `git pull`/`merge` y al cambiar de rama; a mano: `bash scripts/cbm-indexar.sh`.
-- Solo el ejecutor (`build`) y los scripts del harness escriben en el índice; los revisores y Claude solo consultan. Los secretos nunca se indexan.
+- Solo el ejecutor (`build`) y los scripts del harness escriben en el índice; Claude, los revisores, `explorador` y `recolector` solo consultan, y `@mecanico` no lo recibe (abarata cada paso). Los secretos nunca se indexan.
 
 Detalle: [`docs/harness-guide.md` §16](docs/harness-guide.md).
 

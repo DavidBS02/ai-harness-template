@@ -42,35 +42,24 @@ El harness SHALL instalar `codebase-memory-mcp` solo en la versión fijada en `.
 - **WHEN** el binario encontrado informa una versión distinta de la fijada
 - **THEN** el envoltorio del servidor se niega a arrancar y `doctor` lo reporta como error con el comando para reinstalar
 
-### Requirement: Contenedor del ejecutor con el binario fijado
-La imagen del ejecutor SHALL incluir el binario en la versión fijada, verificado por SHA-256 durante la build. La imagen MUST reconstruirse cuando cambie la versión fijada.
-
-#### Scenario: Build de la imagen
-- **WHEN** `scripts/ejec-contenedor --rebuild` construye la imagen
-- **THEN** dentro del contenedor el binario responde con la versión fijada
-
-#### Scenario: Upgrade de versión
-- **WHEN** cambia la versión fijada en `.harness/versiones.json`
-- **THEN** la siguiente ejecución de `scripts/ejec-contenedor` construye una imagen nueva sin necesitar `--rebuild`
-
-#### Scenario: Checksum alterado en la build
-- **WHEN** el checksum fijado para la arquitectura de la imagen no coincide con el archivo descargado
-- **THEN** la build de la imagen falla
-
-### Requirement: Índice y configuración locales, fuera de git
-El servidor SHALL guardar su índice bajo `.harness/cbm/` del repo, en una caché separada por entorno (`host` o `contenedor`), de modo que el host y el contenedor del ejecutor nunca escriban la misma caché. MUST leer su configuración de un directorio aislado por repo, con indexado automático al arrancar y watcher apagados aunque la configuración global del usuario diga lo contrario. `.harness/cbm/`, `.harness/bin/` y `.codebase-memory/` MUST estar ignorados por git.
+### Requirement: Índice compartido entre proyectos, fuera de los repos
+El servidor SHALL guardar el índice de todos los repos que usan el harness en una única caché del usuario (`mcp.codebase_memory.cache_dir`, por defecto `~/.cache/ai-harness/cbm/`, respetando `XDG_CACHE_HOME`), separada de la caché y la configuración propias de codebase-memory-mcp. Así varios repos y worktrees pueden usar la memoria a la vez: el servidor admite un solo daemon por usuario, y cada repo es un proyecto distinto dentro de esa caché. El servidor MUST leer su configuración de esa caché del harness, con indexado automático al arrancar y watcher apagados aunque la configuración propia del usuario diga lo contrario. En el repo solo queda estado local (hash de exclusiones, log y lock) en `.harness/cbm/`. `.harness/cbm/`, `.harness/bin/` y `.codebase-memory/` MUST estar ignorados por git. Solo se soporta el host: el contenedor del ejecutor queda fuera de este change.
 
 #### Scenario: Arranque del servidor
 - **WHEN** Claude Code u OpenCode arrancan el servidor MCP
-- **THEN** el servidor usa la caché de su entorno bajo `.harness/cbm/`, no indexa por su cuenta y no modifica la configuración global del usuario (`~/.config/codebase-memory-mcp/`)
+- **THEN** el servidor usa la caché del harness, no indexa por su cuenta y no modifica la caché ni la configuración propias del usuario (`~/.cache/codebase-memory-mcp/`)
 
-#### Scenario: Configuración global contraria
-- **WHEN** la configuración global del usuario tiene `auto_index` en `true`
+#### Scenario: Configuración del usuario contraria
+- **WHEN** la configuración propia del usuario tiene `auto_index` en `true`
 - **THEN** el servidor arrancado por el harness no indexa al arrancar
 
-#### Scenario: Host y contenedor
-- **WHEN** un hook del host indexa mientras `build` indexa dentro del contenedor
-- **THEN** cada uno escribe en su propia caché
+#### Scenario: Dos proyectos a la vez
+- **WHEN** el usuario tiene abiertos dos repos con el harness (o un repo y un worktree) y los dos arrancan el servidor
+- **THEN** los dos responden a consultas y cada uno ve su propio proyecto
+
+#### Scenario: Contenedor sin memoria
+- **WHEN** OpenCode corre dentro de `scripts/ejec-contenedor`
+- **THEN** el servidor no arranca porque no hay binario, OpenCode sigue funcionando sin memoria de código y `scripts/cbm` explica la causa
 
 #### Scenario: Ruta del repo con espacios
 - **WHEN** el repo está en una ruta con espacios
@@ -80,8 +69,12 @@ El servidor SHALL guardar su índice bajo `.harness/cbm/` del repo, en una cach�
 - **WHEN** existe un índice y el usuario corre `git status`
 - **THEN** no aparece ningún archivo bajo `.harness/cbm/`, `.harness/bin/` ni `.codebase-memory/`
 
-### Requirement: Escritura del índice solo por el ejecutor
-Las herramientas que modifican estado (`index_repository`, `delete_project`, `manage_adr`, `ingest_traces`) SHALL estar disponibles solo para los agentes de OpenCode listados en `mcp.codebase_memory.agentes_escritura` (por defecto, solo `build`) y para los scripts del harness. El veto MUST ser por defecto: Claude Code y cualquier otro agente de OpenCode (revisores, subagentes del template, subagentes integrados y agentes creados después) MUST tener esas herramientas vetadas y conservar las de consulta.
+### Requirement: Acceso al índice por rol
+La memoria de código SHALL ofrecerse solo a quien explora código, porque la definición de sus herramientas viaja en cada paso de cada agente que la tiene. En OpenCode, las herramientas de consulta MUST estar disponibles solo para los agentes de `mcp.codebase_memory.agentes_consulta` (por defecto `build`, `explorador`, `recolector`, `contexto-largo` y los tres revisores); cualquier otro agente (`@mecanico`, subagentes integrados y agentes creados después) MUST NOT recibir ninguna herramienta del servidor. Las herramientas que modifican estado (`index_repository`, `delete_project`, `manage_adr` e `ingest_traces`) SHALL estar disponibles solo para `agentes_escritura` (por defecto, solo `build`) y para los scripts del harness. Claude Code conserva las de consulta y MUST tener vetadas las de escritura.
+
+#### Scenario: Mecánico sin memoria
+- **WHEN** se invoca `@mecanico`
+- **THEN** no se le ofrece ninguna herramienta `codebase-memory_*`
 
 #### Scenario: Revisor intenta re-indexar
 - **WHEN** un revisor de OpenCode invoca `index_repository`
@@ -96,15 +89,15 @@ Las herramientas que modifican estado (`index_repository`, `delete_project`, `ma
 - **THEN** la regla de permisos la deniega; cada herramienta de escritura tiene su propia regla `mcp__<servidor>__<tool>`, sin abreviaturas
 
 #### Scenario: Agente nuevo sin declarar
-- **WHEN** alguien añade `.opencode/agents/nuevo.md` sin tocar `agentes_escritura`
-- **THEN** ese agente no tiene disponibles las herramientas de escritura
+- **WHEN** alguien añade `.opencode/agents/nuevo.md` sin tocar `agentes_consulta` ni `agentes_escritura`
+- **THEN** ese agente no tiene disponible ninguna herramienta del servidor
 
 #### Scenario: Ejecutor indexa
 - **WHEN** el agente `build` de OpenCode invoca `index_repository`
 - **THEN** la herramienta está disponible
 
 ### Requirement: Secretos fuera del índice
-Ningún archivo que coincida con `harness.json → secretos` (salvo `secretos.excepto`) SHALL entrar al índice ni ser consultable. Las exclusiones del indexador MUST generarse desde la lista explícita `mcp.codebase_memory.ignorar`, y el selftest MUST fallar si esa lista no cubre un archivo de ejemplo de cada patrón de `secretos.rutas`. El harness MUST verificar con las reglas del indexador (jerarquía de `.gitignore` más `.cbmignore`, sin la configuración global de git del usuario) que todo archivo secreto presente en el repo queda excluido, antes de cada indexado y al arrancar el servidor. Si alguno no queda excluido, MUST NOT indexar y el servidor MUST NOT arrancar. Si las exclusiones cambiaron desde el último indexado, el índice anterior MUST borrarse antes de volver a indexar.
+Ningún archivo que coincida con `harness.json → secretos` (salvo `secretos.excepto`) SHALL entrar al índice ni ser consultable. Las exclusiones del indexador MUST generarse desde la lista explícita `mcp.codebase_memory.ignorar`, y el selftest MUST fallar si esa lista no cubre un archivo de ejemplo de cada patrón de `secretos.rutas`. El harness MUST verificar con las reglas del indexador (jerarquía de `.gitignore` más `.cbmignore`, sin la configuración global de git del usuario) que todo archivo secreto presente en el repo queda excluido, antes de cada indexado y al arrancar el servidor. Si alguno no queda excluido, MUST NOT indexar y el servidor MUST NOT arrancar. Si las exclusiones cambiaron desde el último indexado, el proyecto de ese repo MUST borrarse del índice antes de volver a indexar, sin tocar los proyectos de otros repos.
 
 #### Scenario: Secreto cubierto
 - **WHEN** el repo tiene `.env` y `deploy/key.pem` y se lanza un indexado
@@ -120,7 +113,7 @@ Ningún archivo que coincida con `harness.json → secretos` (salvo `secretos.ex
 
 #### Scenario: Exclusiones nuevas invalidan el índice
 - **WHEN** se añade un patrón a `ignorar`, se corre `sync` y luego se indexa
-- **THEN** el índice anterior se borra y el nuevo no contiene los archivos recién excluidos
+- **THEN** el proyecto de ese repo se borra del índice, el nuevo no contiene los archivos recién excluidos y los proyectos de otros repos siguen intactos
 
 #### Scenario: Gitignore anidado y reinclusión
 - **WHEN** un `.gitignore` de una subcarpeta reincluye con `!` un archivo secreto
@@ -139,7 +132,7 @@ Tras `git merge` (incluido `git pull` con merge), tras cambiar de rama con `git 
 
 #### Scenario: Worktree nuevo
 - **WHEN** se crea un worktree con `git worktree add ../wt-x -b rama`
-- **THEN** se lanza un indexado en segundo plano del worktree, con su propia caché bajo `../wt-x/.harness/cbm/`
+- **THEN** se lanza un indexado en segundo plano del worktree, que queda como un proyecto propio en el índice compartido y con su estado local en `../wt-x/.harness/cbm/`
 
 #### Scenario: Checkout de un archivo
 - **WHEN** el usuario corre `git checkout -- archivo.py` (no cambia de rama)

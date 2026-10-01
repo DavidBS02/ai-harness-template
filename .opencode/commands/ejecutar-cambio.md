@@ -11,6 +11,8 @@ Vas a implementar el change `$ARGUMENTS`. Formato: `<id>` o `<id> grupo <N>[,<M>
 - **Archivos grandes:** busca con `grep -n` o @explorador y lee solo los rangos que vas a tocar. Nunca leas un archivo de más de 300 líneas entero.
 - **Delega por costo:** @mecanico (modelo Flash) para tests, docs, empaquetado y cambios repetitivos; @explorador para ubicar código. Tú (`build`) solo lo que exige diseño o toca seguridad. Si el encabezado del grupo dice `(@mecanico)`, delégalo entero y revisa su diff.
 - **Tests enfocados por tarea** (la clase o el test que toca). La suite completa solo al cerrar el grupo y antes de las revisiones.
+- **Salidas cortas siempre**: cada salida se queda en el contexto y se paga en todos los pasos siguientes. Tests con `-q … 2>&1 | tail -20`; comandos ruidosos con `--quiet` o `| tail -n 10`; `git diff --stat` antes que el diff completo; nunca imprimas archivos enteros con `cat`. No releas lo que ya leíste en esta sesión.
+- **Memoria de código** (si el agente la tiene): para «¿dónde está X?» o «¿quién llama a Y?», usa `codebase-memory_search_graph` o `codebase-memory_trace_path` antes que `grep` y lecturas.
 - **Depuración:** si una verificación falla 3 veces seguidas, para, anota en HANDOFF.md lo intentado y detente. No sigas probando a ciegas.
 
 1. `git branch --show-current` debe ser `feat/<id>` o `feat/<n>-<id>`, nunca main. Lee la sección "Puntos de entrada" de AGENTS.md.
