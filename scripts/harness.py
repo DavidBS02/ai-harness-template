@@ -880,7 +880,7 @@ def hook_pre_push(stdin_text):
 
 # ----------------------------------------------------------------------------- sync (adaptadores generados)
 
-def generar_rutas(cfg):
+def generar_rutas(cfg, root=None):
     L = [f"# Rutas del harness\n", f"<!-- {GENERADO} -->\n",
          "Cada skill de BMAD y OpenSpec pertenece a una clase; la clase decide herramienta y modelo. "
          "Las guardias bloquean correr una skill en la herramienta equivocada. Consulta rápida: `python3 scripts/harness.py ruta <skill>`.\n",
@@ -897,7 +897,7 @@ def generar_rutas(cfg):
         L.append(f"| {nombre} | {c.get('herramienta') or '— (bloqueada)'} | {am} | {c.get('que', '')} |")
     L += ["", "## Skills", "| Skill | Clase |", "|---|---|"]
     for s, c in sorted(cfg.get("skills", {}).items(), key=lambda kv: (kv[1], kv[0])):
-        L.append(f"| `{s}` | {c} |")
+        L.append(f"| `{s}` | `{c}` |")
     L += ["", "**Skills no listadas: bloqueadas en ambas herramientas** hasta clasificarlas con `/clasificar-skill <nombre>` en Claude Code.", "",
           "## Niveles de ceremonia", "| Nivel | Qué lleva |", "|---|---|"]
     for n, d in sorted(cfg.get("niveles", {}).items()):
@@ -906,14 +906,94 @@ def generar_rutas(cfg):
           "## Zonas", "**Alto (rojo):**", *[f"- `{p}`" for p in lista(cfg, "zonas.alto")], "", "**Bajo (sin código de producción):**", *[f"- `{p}`" for p in lista(cfg, "zonas.bajo")], "",
           "## Modelos por agente de OpenCode", "| Agente | Modelo |", "|---|---|",
           *[f"| `{a}` | `{m}` |" for a, m in cfg.get("agentes", {}).items() if not a.startswith("_")], ""]
+    mcp = cfg.get("mcp", {}).get("codebase_memory", {})
+    if mcp:
+        ver = (cargar_versiones(root).get("binarios", {}).get("codebase-memory-mcp", {}) or {}).get("version", "?") if root else "?"
+        estado = "encendida (`habilitado: true`)" if mcp.get("habilitado") else "apagada (`habilitado: false`)"
+        escritura = ", ".join(f"`{a}`" for a in mcp.get("agentes_escritura", [])) or "nadie"
+        herramientas = ", ".join(f"`{w}`" for w in mcp.get("herramientas_escritura", []))
+        L += ["## Memoria de código", "| Qué | Valor |", "|---|---|",
+              f"| Estado | {estado} |",
+              f"| Versión | `{ver}` (fijada en `.harness/versiones.json → binarios`) |",
+              f"| Quién escribe el índice | agente(s) {escritura} + scripts del harness (hooks post-merge/post-checkout, `cbm-indexar.sh`, `/init-harness`) |",
+              f"| Vetadas por defecto a Claude y al resto de agentes | {herramientas} |",
+              "Detalle: `docs/harness-guide.md` §16.", ""]
     return "\n".join(L)
+
+
+def adaptadores_cbm(root, cfg, salidas):
+    """Memoria de código: .mcp.json, claves de opencode.json (aquí no: las aplica sync sobre su dict)
+    y .cbmignore. Devuelve la lista de archivos a BORRAR (interruptor apagado y sobran).
+    Escribe en salidas[ruta] el contenido final; None nunca se usa: lo que sobra va a borrados."""
+    mcp = cfg.get("mcp", {}).get("codebase_memory", {})
+    servidor = mcp.get("servidor", "codebase-memory")
+    borrados = []
+    mcpjson = Path(root) / ".mcp.json"
+    if mcp.get("habilitado"):
+        d = json.loads(mcpjson.read_text(encoding="utf-8")) if mcpjson.exists() else {}
+        d.setdefault("mcpServers", {})[servidor] = {"command": "${CLAUDE_PROJECT_DIR}/scripts/cbm"}
+        salidas[mcpjson] = json.dumps(d, ensure_ascii=False, indent=2) + "\n"
+        salidas[Path(root) / ".cbmignore"] = (
+            f"# {GENERADO} — exclusiones del índice de la memoria de código (mcp.codebase_memory.ignorar)\n"
+            + "\n".join(mcp.get("ignorar", [])) + "\n")
+    else:
+        if mcpjson.exists():
+            d = json.loads(mcpjson.read_text(encoding="utf-8"))
+            d.get("mcpServers", {}).pop(servidor, None)
+            if not d.get("mcpServers"):
+                d.pop("mcpServers", None)
+            if d:
+                salidas[mcpjson] = json.dumps(d, ensure_ascii=False, indent=2) + "\n"
+            else:
+                borrados.append(mcpjson)  # quedó sin servidores: se retira el archivo
+        if (Path(root) / ".cbmignore").exists():
+            borrados.append(Path(root) / ".cbmignore")
+    return borrados
+
+
+def claves_cbm_opencode(d, cfg):
+    """Aplica sobre el dict de opencode.json las claves de la memoria de código (o las retira). Solo toca esas claves."""
+    mcp = cfg.get("mcp", {}).get("codebase_memory", {})
+    servidor = mcp.get("servidor", "codebase-memory")
+    herramientas = [f"{servidor}_{w}" for w in mcp.get("herramientas_escritura", [])]
+    if mcp.get("habilitado"):
+        d.setdefault("mcp", {})[servidor] = {"type": "local",
+                                            "command": ["sh", "-c", 'exec "$(git rev-parse --show-toplevel)/scripts/cbm"'],
+                                            "enabled": True}
+        tools = d.setdefault("tools", {})
+        for h in herramientas:
+            tools[h] = False
+        for a in mcp.get("agentes_escritura", []):
+            ag = d.setdefault("agent", {}).setdefault(a, {})
+            ag.setdefault("tools", {}).update({h: True for h in herramientas})
+    else:
+        if isinstance(d.get("mcp"), dict):
+            d["mcp"].pop(servidor, None)
+            if not d["mcp"]:
+                d.pop("mcp", None)
+        if isinstance(d.get("tools"), dict):
+            for h in herramientas:
+                d["tools"].pop(h, None)
+            if not d["tools"]:
+                d.pop("tools", None)
+        if isinstance(d.get("agent"), dict):
+            for a, ag in list(d["agent"].items()):
+                if isinstance(ag, dict) and isinstance(ag.get("tools"), dict):
+                    for h in herramientas:
+                        ag["tools"].pop(h, None)
+                    if not ag["tools"]:
+                        ag.pop("tools", None)
+                if isinstance(ag, dict) and not ag:
+                    d["agent"].pop(a, None)
+            if not d["agent"]:
+                d.pop("agent", None)
 
 
 def sync(root, check=False):
     root = Path(root)
     cfg = cargar(root)
     salidas = {}
-    rutas = generar_rutas(cfg)
+    rutas = generar_rutas(cfg, root)
     sm = estado_skills(root)["sin_mapear"]
     if sm:
         rutas += "\n## ⛔ Instaladas y sin mapear (bloqueadas)\n" + "\n".join(f"- `{s}` → `/clasificar-skill {s}`" for s in sm) + "\n"
@@ -934,11 +1014,13 @@ def sync(root, check=False):
         omni = sorted({m.split("/", 1)[1] for m in agentes.values() if m.startswith("omniroute/")})
         prov = d.setdefault("provider", {}).setdefault("omniroute", {})
         prov["models"] = {m: prov.get("models", {}).get(m, {"name": m}) for m in omni}
+        claves_cbm_opencode(d, cfg)
         salidas[oj] = json.dumps(d, ensure_ascii=False, indent=2) + "\n"
     if (root / ".cursor").exists():
         salidas[root / ".cursor/rules/harness.mdc"] = ("---\ndescription: Harness de copilotos (reglas en AGENTS.md)\nalwaysApply: true\n---\n"
                                                       f"<!-- {GENERADO} -->\nLas reglas del repo y del método están en `AGENTS.md` y `.claude/rules/workflow-routing.md`. "
                                                       "Rutas por skill y modelos: `docs/harness/RUTAS.md`. No dupliques reglas aquí.\n")
+    borrados = adaptadores_cbm(root, cfg, salidas)
     cambiados = []
     for p, contenido in salidas.items():
         actual = p.read_text(encoding="utf-8") if p.exists() else None
@@ -947,6 +1029,11 @@ def sync(root, check=False):
             if not check:
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text(contenido, encoding="utf-8")
+    for p in borrados:
+        if p.exists():
+            cambiados.append(str(p.relative_to(root)))
+            if not check:
+                p.unlink()
     return cambiados
 
 
@@ -1043,6 +1130,75 @@ def listar_secretos(root, cfg):
             if es_secreto(cfg, rel):
                 out.append(os.path.join(d, f))
     return sorted(out)
+
+
+# ----------------------------------------------------------------------------- memoria de código (cbm)
+
+def entorno_cbm():
+    """Nombre del entorno de la memoria de código: contenedor si HARNESS_CONTENEDOR=1 (lo fija el Dockerfile), host si no."""
+    return "contenedor" if os.environ.get("HARNESS_CONTENEDOR") == "1" else "host"
+
+
+def dir_cache_cbm(root, cfg):
+    """<cache_dir>/<entorno> de D4, el mismo que exporta scripts/cbm."""
+    base = cfg.get("mcp", {}).get("codebase_memory", {}).get("cache_dir", ".harness/cbm")
+    p = Path(base)
+    return (p if p.is_absolute() else Path(root) / p) / entorno_cbm()
+
+
+def sha_cbmignore(root):
+    import hashlib
+    p = Path(root) / ".cbmignore"
+    if not p.exists():
+        return None
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def invalidar_cache_cbm(root, cfg):
+    """Invalidación de D6: si el SHA-256 de .cbmignore cambió desde el último indexado correcto,
+    borra la caché del entorno para que se indexe en frío. Devuelve (hubo_invalidation, ruta_caché)."""
+    env = dir_cache_cbm(root, cfg)
+    actual = sha_cbmignore(root)
+    guardado = env / "cbmignore.sha256"
+    previo = guardado.read_text(encoding="utf-8").strip() if guardado.exists() else None
+    if actual is not None and actual == previo:
+        return False, env
+    import shutil
+    if env.exists():
+        # se borra todo el entorno, incluido config/: el marcador .harness-config-<versión> es
+        # la garantía de que auto_index y watcher_enabled queden en false (D4 paso 5).
+        shutil.rmtree(env, ignore_errors=True)
+    return True, env
+
+
+def marcar_indexado_cbm(root, cfg):
+    """Guarda el SHA-256 de .cbmignore tras un indexado correcto (D6)."""
+    env = dir_cache_cbm(root, cfg)
+    env.mkdir(parents=True, exist_ok=True)
+    (env / "cbmignore.sha256").write_text((sha_cbmignore(root) or "") + "\n", encoding="utf-8")
+
+
+def verificar_secretos_cbm(root, cfg):
+    """Archivos secretos del repo que el indexador SÍ indexaría (no excluidos).
+
+    Imita las capas del indexador: jerarquía de .gitignore más .cbmignore, SIN el excludes
+    global del usuario (el indexador tampoco lo lee). core.excludesFile apunta a .cbmignore
+    a propósito: si un secreto solo lo cubriera el excludes global, aquí debe FALLAR (D6).
+    """
+    mcp = cfg.get("mcp", {}).get("codebase_memory", {})
+    if not mcp.get("habilitado"):
+        return []
+    cbmignore = Path(root) / ".cbmignore"
+    if not cbmignore.exists():
+        return ["(.cbmignore ausente: genéralo con python3 scripts/harness.py sync)"]
+    faltan = []
+    for f in listar_secretos(root, cfg):
+        rel = os.path.relpath(f, root)
+        r = subprocess.run(["git", "-c", "core.excludesFile=.cbmignore", "check-ignore", "--no-index", "-q", rel],
+                            cwd=root, capture_output=True)
+        if r.returncode != 0:  # 1 = no excluido; otro error también se trata como no excluido (fail-closed)
+            faltan.append(rel)
+    return faltan
 
 
 def doctor(root, con_tests=False):
@@ -1265,6 +1421,34 @@ def main(argv):
         for f in listar_secretos(root, cargar(root, estricto=True)):
             print(f)
         return 0
+    if cmd == "cbm":
+        sub = args[0] if args else ""
+        if sub == "verificar-secretos":
+            try:
+                cfg = cargar(root, estricto=True)
+            except ConfigError as e:
+                print(f"⛔ memoria de código: configuración inválida ({e}); por seguridad se considera que hay secretos sin excluir.")
+                return 1
+            if not cfg.get("mcp", {}).get("codebase_memory", {}).get("habilitado"):
+                sys.stderr.write("memoria de código apagada: nada que verificar\n")
+                return 0
+            faltan = verificar_secretos_cbm(root, cfg)
+            if faltan:
+                sys.stderr.write("⛔ memoria de código: estos archivos secretos quedarían indexados (no los excluye ni .gitignore ni .cbmignore):\n  "
+                                 + "\n  ".join(faltan)
+                                 + "\nAñade su patrón a mcp.codebase_memory.ignorar en harness.json, corre python3 scripts/harness.py sync y reintenta. No se indexa y el servidor no arranca.\n")
+                return 1
+            return 0
+        if sub == "invalidar-cache":
+            cfg = cargar(root, estricto=True)
+            hubo, env = invalidar_cache_cbm(root, cfg)
+            print(f"caché {'borrada (indexado en frío)' if hubo else 'al día'} ({entorno_cbm()}): {env}")
+            return 0
+        if sub == "marcar-indexado":
+            marcar_indexado_cbm(root, cargar(root, estricto=True))
+            return 0
+        print("uso: harness.py cbm {verificar-secretos|invalidar-cache|marcar-indexado}")
+        return 2
     if cmd == "doctor":
         res = doctor(root, con_tests="--tests" in args)
         icono = {"ok": "\033[32m✓\033[0m", "aviso": "\033[33m!\033[0m", "error": "\033[31m✗\033[0m"}

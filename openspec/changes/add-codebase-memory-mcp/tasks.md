@@ -35,15 +35,15 @@
 
 ## 3. Envoltorio y configuración aislada (build)
 
-- [ ] 3.1 `scripts/cbm` según D4 y D5 (interruptor, resolución de binario por plataforma con comprobación de versión, caché y config por entorno `host`/`contenedor`, `verificar-secretos` al arrancar como servidor, `auto_index` y `watcher_enabled` apagados de forma idempotente, `exec "$@"`); verificar con `scripts/cbm cli --quiet list_projects` (código 0), con `habilitado:false` (código 1 y mensaje), comprobando que `~/.config/codebase-memory-mcp/config.json` no cambió (compara `stat` antes y después), y con un `.env` sin excluir (arrancar sin argumentos sale con 1 y nombra el archivo)
-- [ ] 3.2 Prueba de comportamiento de D5: con `auto_index=true` en una config «global» simulada (`HOME` temporal), arrancar `scripts/cbm` como servidor sobre un repo sin índice, esperar 10 s y cerrarlo; verificar que la caché del entorno sigue sin índice (`scripts/cbm cli --quiet list_projects` no lista el repo)
-- [ ] 3.3 Ruta con espacios: clonar el repo en un temporal con espacios en la ruta y arrancar el servidor con el `command` exacto que `sync` genera para OpenCode y para Claude (`${CLAUDE_PROJECT_DIR}` sustituido); verificar que los dos responden a `list_projects`
+- [x] 3.1 `scripts/cbm` según D4 y D5 (interruptor, resolución de binario por plataforma con comprobación de versión, caché y config por entorno `host`/`contenedor`, `verificar-secretos` al arrancar como servidor, `auto_index` y `watcher_enabled` apagados de forma idempotente, `exec "$@"`); verificar con `scripts/cbm cli --quiet list_projects` (código 0), con `habilitado:false` (código 1 y mensaje), comprobando que `~/.config/codebase-memory-mcp/config.json` no cambió (compara `stat` antes y después), y con un `.env` sin excluir (arrancar sin argumentos sale con 1 y nombra el archivo)
+- [x] 3.2 Prueba de comportamiento de D5: con `auto_index=true` en una config «global» simulada (`HOME` temporal), arrancar `scripts/cbm` como servidor sobre un repo sin índice, esperar 10 s y cerrarlo; verificar que la caché del entorno sigue sin índice (`scripts/cbm cli --quiet list_projects` no lista el repo)
+- [x] 3.3 Ruta con espacios: clonar el repo en un temporal con espacios en la ruta y arrancar el servidor con el `command` exacto que `sync` genera para OpenCode y para Claude (`${CLAUDE_PROJECT_DIR}` sustituido); verificar que los dos responden a `list_projects`
 
 ## 4. Secretos fuera del índice (build)
 
-- [ ] 4.1 `harness.py cbm verificar-secretos` según D6 (`listar_secretos` + `git -c core.excludesFile=.cbmignore check-ignore --no-index -q`); código 0 si todo está excluido, 1 nombrando los archivos si no; verificar con el test 9.3
-- [ ] 4.2 Invalidación de D6: guardar `cbmignore.sha256` tras cada indexado correcto; si difiere, borrar la caché del entorno antes de indexar; verificar con el test 9.6
-- [ ] 4.3 Prueba real: con `.env` y `tmp/x.pem` de prueba en el repo, indexar y buscar con `scripts/cbm cli --quiet search_code` el contenido de esos archivos; verificar que no aparecen y borrar los archivos de prueba
+- [x] 4.1 `harness.py cbm verificar-secretos` según D6 (`listar_secretos` + `git -c core.excludesFile=.cbmignore check-ignore --no-index -q`); código 0 si todo está excluido, 1 nombrando los archivos si no; verificar con el test 9.3
+- [x] 4.2 Invalidación de D6: guardar `cbmignore.sha256` tras cada indexado correcto; si difiere, borrar la caché del entorno antes de indexar; verificar con el test 9.6
+- [x] 4.3 Prueba real: con `.env` y `tmp/x.pem` de prueba en el repo, indexar y buscar con `scripts/cbm cli --quiet search_code` el contenido de esos archivos; verificar que no aparecen y borrar los archivos de prueba
 
 ## 5. Adaptadores generados por sync (build)
 
