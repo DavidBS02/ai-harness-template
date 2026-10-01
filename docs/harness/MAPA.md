@@ -21,4 +21,10 @@
 ## 6. Reglas no escritas
 <!-- convenciones que el código sigue pero nadie documentó; van a AGENTS.md -->
 
-## 7. Lo que Claude NO entendió / dudas para el humano
+## 7. Memoria de código
+<!-- La escribe /descubrir (paso «¿Memoria de código?») tras confirmarla con el humano. Interruptor: harness.json → mcp.codebase_memory.habilitado -->
+- Decisión: encendida | apagada (confirmada por el humano el <fecha>)
+- Justificación: <qué de la visión y el objetivo pesó: tamaño, módulos, lenguajes, vida esperada, trabajo en paralelo>
+- Revisar: <solo en proyecto verde: «en el primer hito», con el issue verificacion-diferida #<n>>
+
+## 8. Lo que Claude NO entendió / dudas para el humano

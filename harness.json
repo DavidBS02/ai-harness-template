@@ -260,7 +260,10 @@
       "^\\.opencode/plugins/",
       "^\\.opencode/agents/",
       "^opencode\\.json$",
-      "^\\.harness/(contenedor/|versiones\\.json$|openspec-config\\.base\\.yaml$)"
+      "^\\.harness/(contenedor/|versiones\\.json$|openspec-config\\.base\\.yaml$)",
+      "^scripts/cbm(-[a-z]+\\.sh)?$",
+      "^\\.mcp\\.json$",
+      "^\\.cbmignore$"
     ],
     "arquitecto_puede": [
       "^harness\\.json$",
@@ -361,6 +364,28 @@
     "revisor-bmad": [
       "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR"
     ]
+  },
+  "mcp": {
+    "_doc": "Servidores MCP compartidos por Claude Code y OpenCode. 'sync' genera .mcp.json (Claude) y el bloque 'mcp' de opencode.json desde aquí. La versión y los checksums están en .harness/versiones.json → binarios. Se apaga con habilitado:false + sync (docs/harness-guide.md → Memoria de código).",
+    "codebase_memory": {
+      "_doc": "Memoria de código (codebase-memory-mcp). habilitado: el interruptor único. servidor: nombre del MCP y prefijo de sus herramientas (Claude: mcp__<servidor>__<tool>; OpenCode: <servidor>_<tool>). Las herramientas de escritura están vetadas POR DEFECTO para Claude y para todo agente de OpenCode; solo agentes_escritura las tiene. Indexar lo hacen además los scripts del harness: hooks post-merge/post-checkout (en segundo plano), scripts/cbm-indexar.sh (manual) y /init-harness. El servidor no indexa solo (auto_index y watcher apagados por scripts/cbm). ignorar: patrones gitignore que reflejan 'secretos' → .cbmignore; 'harness.py cbm verificar-secretos' falla si un secreto del repo quedaría indexado.",
+      "habilitado": true,
+      "servidor": "codebase-memory",
+      "comando": "scripts/cbm",
+      "cache_dir": ".harness/cbm",
+      "config_dir": ".harness/cbm/config",
+      "agentes_escritura": ["build"],
+      "herramientas_escritura": ["index_repository", "delete_project", "manage_adr", "ingest_traces"],
+      "ignorar": [
+        ".env", ".env.*", "!.env.example", "!.env.sample", "!.env.template",
+        ".ssh/", ".aws/", ".kube/", ".gnupg/", ".config/gh/", ".docker/config.json",
+        ".npmrc", ".netrc", ".pypirc", ".git-credentials",
+        "*.pem", "*.key", "*.p12", "*.pfx", "*.keystore", "*.jks",
+        "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
+        "credentials.json", "service-account*.json", "client_secret*.json",
+        ".harness/cbm/", ".harness/bin/", ".codebase-memory/"
+      ]
+    }
   },
   "escalamiento": {
     "_doc": "Reglas explícitas; nada escala solo a un modelo caro.",

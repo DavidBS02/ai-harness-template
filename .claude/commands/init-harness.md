@@ -18,4 +18,10 @@ Vas a aplicar la configuración del harness al repo actual. Si aún no corriste 
 6. **CI y dependencias** (`docs/ESTANDAR-PROYECTO.md` §4). En `.github/workflows/ci.yml`, reemplaza el paso `STACK pendiente` por los gates reales del stack: instalación reproducible con lockfile, lint, tipos, tests, build y auditoría de dependencias (gitleaks ya está). El job debe llamarse `test`. En `.github/dependabot.yml`, agrega el ecosistema del stack. Si falta `.env.example`, créalo solo con nombres de variables.
 7. **`_bmad-output/`.** Si está en `.gitignore`, propón versionar al menos los artefactos de contrato (SPEC y spine), porque OpenCode trabaja en worktrees y no ve lo ignorado (`docs/LECCIONES.md` §9). [CONFIRMAR CONMIGO]
 8. **Placeholders de modelo.** NO los inventes. Están en `harness.json` → `agentes` (`grep -n REEMPLAZA-CON-ID harness.json`). Dime qué ID pegar en cada uno y de dónde sacarlo (OmniRoute → Combos / Providers; OpenCode → /models). Después, `python3 scripts/harness.py sync`.
-9. Commit `chore: init harness de copilotos` en la rama de trabajo. Cierra con un checklist de lo que queda manual (logins, IDs de modelo, protección de main).
+9. **Memoria de código.** Si `harness.json → mcp.codebase_memory.habilitado` es `false`, omite este paso y dilo en el checklist final. Si es `true`, haz el indexado inicial en primer plano y muéstrale al usuario cada salida:
+   - `bash scripts/cbm-instalar.sh`: instala el binario de la versión fijada, verificado por SHA-256.
+   - `python3 scripts/harness.py cbm verificar-secretos`: si falla, NO indexes. Añade el patrón que falta a `mcp.codebase_memory.ignorar`, corre `sync` y repite.
+   - `bash scripts/cbm-indexar.sh`: indexado completo.
+   - `scripts/cbm cli --quiet list_projects`: el repo debe aparecer.
+   Las herramientas MCP de escritura siguen vetadas para Claude; indexar se hace solo con estos scripts.
+10. Commit `chore: init harness de copilotos` en la rama de trabajo. Cierra con un checklist de lo que queda manual (logins, IDs de modelo, protección de main, y si la memoria de código quedó indexada o apagada).
