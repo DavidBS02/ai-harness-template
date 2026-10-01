@@ -911,10 +911,12 @@ def generar_rutas(cfg, root=None):
         ver = (cargar_versiones(root).get("binarios", {}).get("codebase-memory-mcp", {}) or {}).get("version", "?") if root else "?"
         estado = "encendida (`habilitado: true`)" if mcp.get("habilitado") else "apagada (`habilitado: false`)"
         escritura = ", ".join(f"`{a}`" for a in mcp.get("agentes_escritura", [])) or "nadie"
+        consulta = ", ".join(f"`{a}`" for a in mcp.get("agentes_consulta", [])) or "nadie"
         herramientas = ", ".join(f"`{w}`" for w in mcp.get("herramientas_escritura", []))
         L += ["## Memoria de código", "| Qué | Valor |", "|---|---|",
               f"| Estado | {estado} |",
               f"| Versión | `{ver}` (fijada en `.harness/versiones.json → binarios`) |",
+              f"| Quién consulta el índice | agente(s) {consulta} (el veto global `codebase-memory_*` se lo quita al resto) |",
               f"| Quién escribe el índice | agente(s) {escritura} + scripts del harness (hooks post-merge/post-checkout, `cbm-indexar.sh`, `/init-harness`) |",
               f"| Vetadas por defecto a Claude y al resto de agentes | {herramientas} |",
               "Detalle: `docs/harness-guide.md` §16.", ""]
@@ -952,37 +954,56 @@ def adaptadores_cbm(root, cfg, salidas):
 
 
 def claves_cbm_opencode(d, cfg):
-    """Aplica sobre el dict de opencode.json las claves de la memoria de código (o las retira). Solo toca esas claves."""
+    """Aplica sobre el dict de opencode.json las claves de la memoria de código (o las retira). Solo toca esas claves.
+
+    Acceso por rol (D1): el veto global `codebase-memory_*` evita que la definición de las 17
+    herramientas viaje en cada paso de quien no explora; el servidor solo se abre a
+    agentes_consulta, y las de escritura solo a los de agentes_escritura.
+    """
     mcp = cfg.get("mcp", {}).get("codebase_memory", {})
     servidor = mcp.get("servidor", "codebase-memory")
-    herramientas = [f"{servidor}_{w}" for w in mcp.get("herramientas_escritura", [])]
+    prefijo = f"{servidor}_"
+    veto = f"{prefijo}*"
+    consultas = [a for a in mcp.get("agentes_consulta", [])]
+    escritura = [a for a in mcp.get("agentes_escritura", [])]
+    vetadas = [f"{prefijo}{w}" for w in mcp.get("herramientas_escritura", [])]
     if mcp.get("habilitado"):
+        fuera = [a for a in escritura if a not in consultas]
+        if fuera:
+            raise ConfigError(f"mcp.codebase_memory: {fuera} está en agentes_escritura pero no en "
+                              f"agentes_consulta ({consultas}); el servidor solo se ofrece a quienes consultan (D1)")
         d.setdefault("mcp", {})[servidor] = {"type": "local",
                                             "command": ["sh", "-c", 'exec "$(git rev-parse --show-toplevel)/scripts/cbm"'],
                                             "enabled": True}
         tools = d.setdefault("tools", {})
-        for h in herramientas:
-            tools[h] = False
-        for a in mcp.get("agentes_escritura", []):
-            ag = d.setdefault("agent", {}).setdefault(a, {})
-            ag.setdefault("tools", {}).update({h: True for h in herramientas})
+        for h in vetadas:
+            tools.pop(h, None)  # sin vetar una por una: el veto por patrón las cubre
+        tools[veto] = False
+        for a in consultas:
+            t = d.setdefault("agent", {}).setdefault(a, {}).setdefault("tools", {})
+            t[veto] = True
+            for h in vetadas:
+                if a not in escritura:
+                    t[h] = False
+                else:
+                    t.pop(h, None)
     else:
         if isinstance(d.get("mcp"), dict):
             d["mcp"].pop(servidor, None)
             if not d["mcp"]:
                 d.pop("mcp", None)
-        if isinstance(d.get("tools"), dict):
-            for h in herramientas:
-                d["tools"].pop(h, None)
-            if not d["tools"]:
-                d.pop("tools", None)
+        bloques = [d.get("tools")] + [ag.get("tools") for ag in (d.get("agent") or {}).values()
+                                      if isinstance(ag, dict) and isinstance(ag.get("tools"), dict)]
+        for bloque in bloques:
+            if isinstance(bloque, dict):
+                for k in [k for k in bloque if isinstance(k, str) and k.startswith(prefijo)]:
+                    bloque.pop(k)
+        if isinstance(d.get("tools"), dict) and not d["tools"]:
+            d.pop("tools", None)
         if isinstance(d.get("agent"), dict):
             for a, ag in list(d["agent"].items()):
-                if isinstance(ag, dict) and isinstance(ag.get("tools"), dict):
-                    for h in herramientas:
-                        ag["tools"].pop(h, None)
-                    if not ag["tools"]:
-                        ag.pop("tools", None)
+                if isinstance(ag, dict) and isinstance(ag.get("tools"), dict) and not ag["tools"]:
+                    ag.pop("tools", None)
                 if isinstance(ag, dict) and not ag:
                     d["agent"].pop(a, None)
             if not d["agent"]:
@@ -1134,16 +1155,47 @@ def listar_secretos(root, cfg):
 
 # ----------------------------------------------------------------------------- memoria de código (cbm)
 
-def entorno_cbm():
-    """Nombre del entorno de la memoria de código: contenedor si HARNESS_CONTENEDOR=1 (lo fija el Dockerfile), host si no."""
-    return "contenedor" if os.environ.get("HARNESS_CONTENEDOR") == "1" else "host"
+_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(:-?)([^}]*)\}")
+
+
+def expandir_cache(valor):
+    """Expande ${VAR}, ${VAR:-def} y ~ de mcp.codebase_memory.cache_dir (D4).
+
+    os.path.expandvars no entiende ${VAR:-def}; el valor por defecto también se expande (p. ej.
+    ${XDG_CACHE_HOME:-$HOME/.cache}). Con --cache-dir sin expandir, mkdir creaba un directorio
+    literal con el nombre de la variable dentro del repo.
+    """
+    def un_uso(m):
+        nombre, sep, alt = m.group(1), m.group(2), m.group(3)
+        v = os.environ.get(nombre)
+        if sep == ":-":
+            return v if v else alt
+        return v or ""
+    for _ in range(5):  # las referencias anidadas (un default que usa otra variable) resuelven en pocas vueltas
+        nuevo = _VAR_RE.sub(un_uso, valor)
+        if nuevo == valor:
+            break
+        valor = nuevo
+    return os.path.normpath(os.path.expanduser(valor))
 
 
 def dir_cache_cbm(root, cfg):
-    """<cache_dir>/<entorno> de D4, el mismo que exporta scripts/cbm."""
-    base = cfg.get("mcp", {}).get("codebase_memory", {}).get("cache_dir", ".harness/cbm")
-    p = Path(base)
-    return (p if p.is_absolute() else Path(root) / p) / entorno_cbm()
+    """Caché del servidor de la memoria de código: ÚNICA y compartida por todos los repos (D4/D5).
+
+    Sin sufijo de entorno: v0.11.0 admite un solo daemon por usuario y se niega a arrancar si otro
+    daemon vivo usa otro CBM_CACHE_DIR, así que una caché por repo dejaría a los demás sin memoria.
+    El servidor ya separa los proyectos por su ruta absoluta.
+    """
+    base = cfg.get("mcp", {}).get("codebase_memory", {}).get("cache_dir") or "${XDG_CACHE_HOME:-$HOME/.cache}/ai-harness/cbm"
+    p = Path(expandir_cache(base))
+    return p if p.is_absolute() else Path(root) / p
+
+
+def dir_estado_cbm(root, cfg):
+    """Estado LOCAL del repo (hash de .cbmignore, log, lock). No es la caché del servidor: shared."""
+    base = cfg.get("mcp", {}).get("codebase_memory", {}).get("estado_dir", ".harness/cbm")
+    p = Path(expandir_cache(base))
+    return p if p.is_absolute() else Path(root) / p
 
 
 def sha_cbmignore(root):
@@ -1154,28 +1206,56 @@ def sha_cbmignore(root):
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+def proyecto_indexado_cbm(root):
+    """Nombre con el que el servidor indexó este repo, o None si no está en el índice.
+
+    Se pregunta al servidor (list_projects --format json, emparejando root_path) en vez de
+    reimplementar su regla de nombres: si esa regla cambia, el borrado sigue apuntando al
+    proyecto correcto en vez de fallar en silencio.
+    """
+    r = subprocess.run([str(Path(root) / "scripts/cbm"), "cli", "list_projects", "--format", "json"],
+                       cwd=root, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"no se pudo listar los proyectos del índice: {r.stderr.strip() or r.stdout.strip()}")
+    try:
+        proyectos = json.loads(r.stdout).get("projects", [])
+    except json.JSONDecodeError:
+        raise RuntimeError(f"list_projects no devolvió JSON: {r.stdout.strip()[:200]}")
+    real = str(Path(root).resolve())
+    for p in proyectos:
+        if p.get("root_path") and str(Path(p["root_path"]).resolve()) == real:
+            return p.get("name")
+    return None
+
+
 def invalidar_cache_cbm(root, cfg):
-    """Invalidación de D6: si el SHA-256 de .cbmignore cambió desde el último indexado correcto,
-    borra la caché del entorno para que se indexe en frío. Devuelve (hubo_invalidation, ruta_caché)."""
-    env = dir_cache_cbm(root, cfg)
+    """Invalidación de D6 sobre la caché COMPARTIDA: si el SHA-256 de .cbmignore cambió desde el
+    último indexado correcto, borra SOLO el proyecto de este repo (los demás no se tocan) para que
+    el re-indexado sea en frío. Devuelve (motivo, nombre_proyecto) con motivo en
+    al_dia|borrado|sin_indice, que el llamador y el log distinguen."""
+    estado = dir_estado_cbm(root, cfg)
     actual = sha_cbmignore(root)
-    guardado = env / "cbmignore.sha256"
+    guardado = estado / "cbmignore.sha256"
     previo = guardado.read_text(encoding="utf-8").strip() if guardado.exists() else None
     if actual is not None and actual == previo:
-        return False, env
-    import shutil
-    if env.exists():
-        # se borra todo el entorno, incluido config/: el marcador .harness-config-<versión> es
-        # la garantía de que auto_index y watcher_enabled queden en false (D4 paso 5).
-        shutil.rmtree(env, ignore_errors=True)
-    return True, env
+        return "al_dia", None
+    nombre = proyecto_indexado_cbm(root)
+    if not nombre:
+        return "sin_indice", None  # este repo no estaba en el índice: nada viejo que pueda sobrevivir
+    r = subprocess.run([str(Path(root) / "scripts/cbm"), "cli", "--quiet", "delete_project",
+                        json.dumps({"project": nombre})], cwd=root, capture_output=True, text=True)
+    if r.returncode != 0 or '"status":"deleted"' not in r.stdout.replace(" ", ""):
+        # fail-closed: si el índice viejo sobrevive, un archivo recién excluido seguiría consultable
+        raise RuntimeError(f"no se pudo borrar el proyecto {nombre} de la caché compartida: "
+                           f"{r.stderr.strip() or r.stdout.strip()}")
+    return "borrado", nombre
 
 
 def marcar_indexado_cbm(root, cfg):
-    """Guarda el SHA-256 de .cbmignore tras un indexado correcto (D6)."""
-    env = dir_cache_cbm(root, cfg)
-    env.mkdir(parents=True, exist_ok=True)
-    (env / "cbmignore.sha256").write_text((sha_cbmignore(root) or "") + "\n", encoding="utf-8")
+    """Guarda el SHA-256 de .cbmignore en el estado local del repo tras un indexado correcto (D6)."""
+    estado = dir_estado_cbm(root, cfg)
+    estado.mkdir(parents=True, exist_ok=True)
+    (estado / "cbmignore.sha256").write_text((sha_cbmignore(root) or "") + "\n", encoding="utf-8")
 
 
 def verificar_secretos_cbm(root, cfg):
@@ -1201,6 +1281,16 @@ def verificar_secretos_cbm(root, cfg):
     return faltan
 
 
+def deriva_sync(root):
+    """(deriva, error): archivos adaptadores desactualizados y, si harness.json no es coherente,
+    el motivo. sync() lanza ConfigError (p. ej. agentes_escritura fuera de agentes_consulta) y
+    doctor tiene que reportarlo, no reventar."""
+    try:
+        return sync(root, check=True), None
+    except ConfigError as e:
+        return None, str(e)
+
+
 def doctor(root, con_tests=False):
     """Lista de (nivel, mensaje) con nivel en ok|aviso|error."""
     R = []
@@ -1219,7 +1309,12 @@ def doctor(root, con_tests=False):
             er(f"presupuesto del nivel {n} ausente o inválido")
     placeholders = [a for a, m in cfg.get("agentes", {}).items() if isinstance(m, str) and "REEMPLAZA" in m]
     (av if placeholders else ok)(f"modelos sin ID real en harness.json → agentes: {', '.join(placeholders)}" if placeholders else "IDs de modelo configurados")
-    (ok if sync(root, check=True) == [] else av)("adaptadores al día con harness.json" if sync(root, check=True) == [] else "adaptadores desactualizados: python3 scripts/harness.py sync")
+    deriva, err_sync = deriva_sync(root)
+    if err_sync:
+        er(f"adaptadores no generables: {err_sync}")
+    else:
+        (ok if not deriva else av)("adaptadores al día con harness.json" if not deriva
+                                  else "adaptadores desactualizados: " + ", ".join(deriva) + " → python3 scripts/harness.py sync")
     sm = estado_skills(root)["sin_mapear"]
     (er if sm else ok)(f"skills sin clasificar (bloqueadas): {', '.join(sm)}" if sm else "todas las skills instaladas están clasificadas")
     # secretos versionados
@@ -1439,15 +1534,24 @@ def main(argv):
                                  + "\nAñade su patrón a mcp.codebase_memory.ignorar en harness.json, corre python3 scripts/harness.py sync y reintenta. No se indexa y el servidor no arranca.\n")
                 return 1
             return 0
+        if sub == "ruta-cache":
+            print(dir_cache_cbm(root, cargar(root, estricto=True)))
+            return 0
         if sub == "invalidar-cache":
-            cfg = cargar(root, estricto=True)
-            hubo, env = invalidar_cache_cbm(root, cfg)
-            print(f"caché {'borrada (indexado en frío)' if hubo else 'al día'} ({entorno_cbm()}): {env}")
+            try:
+                cfg = cargar(root, estricto=True)
+                motivo, nombre = invalidar_cache_cbm(root, cfg)
+            except (ConfigError, RuntimeError) as e:
+                print(f"⛔ memoria de código: {e}", file=sys.stderr)
+                return 1
+            print({"al_dia": "índice al día (las exclusiones no cambiaron)",
+                   "borrado": f"índice del proyecto {nombre} borrado: se re-indexa en frío",
+                   "sin_indice": "este repo no estaba en el índice: se indexa en frío"}[motivo])
             return 0
         if sub == "marcar-indexado":
             marcar_indexado_cbm(root, cargar(root, estricto=True))
             return 0
-        print("uso: harness.py cbm {verificar-secretos|invalidar-cache|marcar-indexado}")
+        print("uso: harness.py cbm {verificar-secretos|ruta-cache|invalidar-cache|marcar-indexado}")
         return 2
     if cmd == "doctor":
         res = doctor(root, con_tests="--tests" in args)
@@ -1465,7 +1569,11 @@ def main(argv):
             return hook_pre_push(sys.stdin.read())
         return 2
     if cmd == "sync":
-        cambiados = sync(root, check="--check" in args)
+        try:
+            cambiados = sync(root, check="--check" in args)
+        except ConfigError as e:
+            print(f"⛔ harness.json no es coherente: {e}", file=sys.stderr)
+            return 1
         if "--check" in args:
             if cambiados:
                 print("Adaptadores desactualizados respecto a harness.json:\n  " + "\n  ".join(cambiados) + "\nCorre: python3 scripts/harness.py sync")

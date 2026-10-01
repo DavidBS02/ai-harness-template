@@ -5,9 +5,14 @@
       "Read(./.env.*)",
       "Read(~/.ssh/**)",
       "Read(~/.config/gh/**)",
-      "Read(~/.aws/**)"
+      "Read(~/.aws/**)",
+      "mcp__codebase-memory__index_repository",
+      "mcp__codebase-memory__delete_project",
+      "mcp__codebase-memory__manage_adr",
+      "mcp__codebase-memory__ingest_traces"
     ]
   },
+  "enabledMcpjsonServers": ["codebase-memory"],
   "sandbox": {
     "filesystem": {
       "denyRead": [
@@ -26,7 +31,9 @@
         "./.opencode/agents",
         "./opencode.json",
         "./.harness/contenedor",
-        "./.harness/versiones.json"
+        "./.harness/versiones.json",
+        "./.mcp.json",
+        "./.cbmignore"
       ]
     }
   },

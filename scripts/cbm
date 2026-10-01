@@ -4,8 +4,9 @@
 # y los scripts del harness y los humanos como CLI: scripts/cbm cli --quiet <tool> [json_args].
 #   1. habilitado (harness.json → mcp.codebase_memory.habilitado) en false → sale 1
 #   2. binario: .harness/bin/<os>-<arch>/ o /usr/local/bin (contenedor), SIEMPRE en la versión fijada
-#   3. aislamiento por entorno (host|contenedor con HARNESS_CONTENEDOR=1): CBM_CACHE_DIR, XDG_CONFIG_HOME
-#      y HOME dentro de .harness/cbm/<entorno>/ (v0.11.0 ignora XDG: fallback HOME, HANDOFF.md §1.2)
+#   3. caché ÚNICA compartida por todos los repos (harness.py cbm ruta-cache): CBM_CACHE_DIR,
+#      XDG_CONFIG_HOME y HOME dentro de ella (v0.11.0 ignora XDG: fallback HOME, HANDOFF.md §1.2).
+#      Sin entornos ni HARNESS_CONTENEDOR: el servidor admite un solo daemon por usuario (D4).
 #   4. sin args (arranque como servidor): harness.py cbm verificar-secretos, fail-closed
 #   5. auto_index y watcher_enabled en false, idempotente (marcador .harness-config-<version>)
 #   6. exec "$@"
@@ -14,15 +15,15 @@ RAIZ="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [ -n "$RAIZ" ] || RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 
 DATOS="$(python3 -c '
-import json, sys
-mcp = json.load(open(sys.argv[1])).get("mcp", {}).get("codebase_memory", {})
+import json, os, sys
+cfg = os.environ.get("HARNESS_CONFIG") or sys.argv[1]  # mismo override que harness.py → ruta_config
+mcp = json.load(open(cfg)).get("mcp", {}).get("codebase_memory", {})
 ver = json.load(open(sys.argv[2]))["binarios"]["codebase-memory-mcp"]["version"]
 print("true" if mcp.get("habilitado") else "false")
-print(mcp.get("cache_dir", ".harness/cbm"))
 print(ver)
 ' "$RAIZ/harness.json" "$RAIZ/.harness/versiones.json" 2>/dev/null)" || DATOS=""
 [ -n "$DATOS" ] || { echo "✗ memoria de código: no se pudo leer harness.json o .harness/versiones.json desde $RAIZ" >&2; exit 1; }
-{ read -r HABILITADO; read -r CACHE_DIR; read -r VERSION; } <<<"$DATOS"
+{ read -r HABILITADO; read -r VERSION; } <<<"$DATOS"
 [ "$HABILITADO" = "true" ] || { echo "✗ memoria de código apagada (harness.json → mcp.codebase_memory.habilitado: false). Enciéndela y corre: python3 scripts/harness.py sync" >&2; exit 1; }
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -40,21 +41,21 @@ fi
 ACTUAL="$("$BINARIO" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
 [ "$ACTUAL" = "$VERSION" ] || { echo "✗ versión de codebase-memory-mcp no coincide: instalada ${ACTUAL:-?}, fijada $VERSION. Reinstala: bash scripts/cbm-instalar.sh (host) o scripts/ejec-contenedor --rebuild (contenedor)." >&2; exit 1; }
 
-case "$CACHE_DIR" in /*) ;; *) CACHE_DIR="$RAIZ/$CACHE_DIR";; esac
-if [ "${HARNESS_CONTENEDOR:-0}" = "1" ]; then ENTORNO=contenedor; else ENTORNO=host; fi
-ENV_DIR="$CACHE_DIR/$ENTORNO"
-export CBM_CACHE_DIR="$ENV_DIR"
-export XDG_CONFIG_HOME="$ENV_DIR/config"   # inerte en v0.11.0 (ignora XDG); documental y a prueba de upgrades
-export HOME="$ENV_DIR/home"                # fallback activo: la config vive en $CBM_CACHE_DIR/_config.db
-mkdir -p "$ENV_DIR" "$ENV_DIR/config" "$ENV_DIR/home"
+CACHE_DIR="$(python3 "$RAIZ/scripts/harness.py" cbm ruta-cache 2>/dev/null)" || CACHE_DIR=""
+[ -n "$CACHE_DIR" ] || { echo "✗ memoria de código: no se pudo resolver la caché compartida (harness.py cbm ruta-cache)" >&2; exit 1; }
+export CBM_CACHE_DIR="$CACHE_DIR"
+export XDG_CONFIG_HOME="$CACHE_DIR/config"   # inerte en v0.11.0 (ignora XDG); documental y a prueba de upgrades
+export HOME="$CACHE_DIR/home"                # fallback activo: la config vive en $CBM_CACHE_DIR/_config.db
+mkdir -p "$CACHE_DIR" "$CACHE_DIR/config" "$CACHE_DIR/home"
 
 # arranque como servidor MCP: ningún secreto del repo puede quedar indexable
 if [ $# -eq 0 ]; then
   python3 "$RAIZ/scripts/harness.py" cbm verificar-secretos || exit 1
 fi
 
-# auto_index y watcher apagados, idempotente (marcador por versión)
-MARCA="$ENV_DIR/config/.harness-config-$VERSION"
+# auto_index y watcher apagados, idempotente (marcador por versión; vive en la caché compartida
+# porque la config que gobierna también es única)
+MARCA="$CACHE_DIR/.harness-config-$VERSION"
 if [ ! -f "$MARCA" ]; then
   "$BINARIO" config set auto_index false >/dev/null || { echo "✗ no se pudo fijar auto_index=false en la config aislada" >&2; exit 1; }
   "$BINARIO" config set watcher_enabled false >/dev/null || { echo "✗ no se pudo fijar watcher_enabled=false en la config aislada" >&2; exit 1; }
