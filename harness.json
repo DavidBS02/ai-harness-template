@@ -373,7 +373,6 @@
       "servidor": "codebase-memory",
       "comando": "scripts/cbm",
       "cache_dir": ".harness/cbm",
-      "config_dir": ".harness/cbm/config",
       "agentes_escritura": ["build"],
       "herramientas_escritura": ["index_repository", "delete_project", "manage_adr", "ingest_traces"],
       "ignorar": [

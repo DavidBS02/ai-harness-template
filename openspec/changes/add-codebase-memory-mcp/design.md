@@ -39,7 +39,7 @@ Estado actual del harness: `sync` ya regenera `opencode.json` (modelo y proveedo
 ## Decisions
 
 ### D1. Datos en `harness.json`, adaptadores generados por `sync`
-`harness.json → mcp.codebase_memory` contiene `habilitado`, `servidor` (`codebase-memory`, el prefijo de las herramientas), `cache_dir`, `config_dir`, `agentes_escritura` (`["build"]`), `herramientas_escritura` e `ignorar` (patrones gitignore). `sync` es el único que escribe:
+`harness.json → mcp.codebase_memory` contiene `habilitado`, `servidor` (`codebase-memory`, el prefijo de las herramientas), `cache_dir` (base; cada entorno usa `<cache_dir>/<entorno>/`, con su config en `config/`, ver D4), `agentes_escritura` (`["build"]`), `herramientas_escritura` e `ignorar` (patrones gitignore). `sync` es el único que escribe:
 - `.mcp.json`: solo la clave `mcpServers.codebase-memory` (`command: "${CLAUDE_PROJECT_DIR}/scripts/cbm"`). Conserva cualquier otro servidor y, si el archivo queda sin servidores, lo borra.
 - `opencode.json`: `mcp.codebase-memory` (`type: local`, `command: ["sh", "-c", "exec \"$(git rev-parse --show-toplevel)/scripts/cbm\""]`, `enabled: true`). Además, `tools` con `"codebase-memory_<w>": false` por cada herramienta de escritura, y `agent.<a>.tools` con `true` para cada agente de `agentes_escritura`. Solo toca esas claves.
 - `.cbmignore`: cabecera `GENERADO` más `ignorar`.
@@ -49,7 +49,7 @@ Con `habilitado: false`, `sync` retira exactamente esas claves y el archivo `.cb
 *Alternativa descartada:* poner el veto en el frontmatter de cada `.opencode/agents/*.md`. Es una lista que hay que mantener, no cubre los subagentes integrados de OpenCode (`general`) y no cubre agentes nuevos.
 
 ### D2. Permisos de Claude Code: estáticos en `.claude/settings.json`
-`permissions.deny` añade `mcp__codebase-memory__{index_repository,delete_project,manage_adr,ingest_traces}`, y `enabledMcpjsonServers: ["codebase-memory"]` evita el aviso de aprobación. Es seguro porque el binario está fijado por checksum. Se deja estático (sync no reescribe `settings.json`). Un test verifica que `deny` cubre `herramientas_escritura`. Si la memoria está apagada, esas entradas no afectan a nada.
+`permissions.deny` añade cuatro reglas literales, una por herramienta y sin abreviaturas ni llaves: `mcp__codebase-memory__index_repository`, `mcp__codebase-memory__delete_project`, `mcp__codebase-memory__manage_adr` y `mcp__codebase-memory__ingest_traces`. `enabledMcpjsonServers: ["codebase-memory"]` evita el aviso de aprobación; es seguro porque el binario está fijado por checksum y `scripts/cbm` verifica secretos antes de arrancar. Se deja estático (sync no reescribe `settings.json`). Un test exige que `deny` contenga literalmente `mcp__<servidor>__<w>` para cada `herramientas_escritura`. Con la memoria apagada esas entradas quedan inertes; el spec lo permite de forma explícita.
 
 ### D3. Binario: instalación propia con checksum, por plataforma
 - `.harness/versiones.json → binarios.codebase-memory-mcp`: `version`, `url` (plantilla con `{version}`, `{os}` y `{arch}`) y `sha256` por `<os>-<arch>` (los 4 valores de Context).
@@ -60,36 +60,39 @@ Con `habilitado: false`, `sync` retira exactamente esas claves y el archivo `.cb
 Es el punto de entrada único: lo arrancan los dos MCP, los scripts y los humanos. Hace esto:
 1. Sale con código 1 y un mensaje si `habilitado` es false.
 2. Resuelve el binario: primero `.harness/bin/<os>-<arch>/`; si no existe, `/usr/local/bin/codebase-memory-mcp` (el del contenedor). En los dos casos exige que la versión coincida con la fijada; si no, sale con código 1 y el comando para reinstalar.
-3. Exporta `CBM_CACHE_DIR=<raíz>/.harness/cbm` y aísla la configuración del servidor en `<raíz>/.harness/cbm/config` (D5).
-4. Asegura `auto_index=false` y `watcher_enabled=false` de forma idempotente, con un marcador de versión en `config_dir` para no repetirlo en cada arranque.
-5. Hace `exec` del binario con `"$@"`.
+3. Calcula el entorno: `contenedor` si `HARNESS_CONTENEDOR=1` (lo fija el Dockerfile con `ENV`) y `host` en otro caso. Exporta `CBM_CACHE_DIR=<raíz>/.harness/cbm/<entorno>` y aísla la configuración del servidor en `<raíz>/.harness/cbm/<entorno>/config` (D5). Separar por entorno, y no por plataforma, evita que un host Linux y el contenedor Linux compartan caché.
+4. Si no hay argumentos (arranque como servidor MCP): corre `harness.py cbm verificar-secretos` y sale con código 1 si falla, para que el servidor no sirva consultas mientras haya un secreto sin excluir.
+5. Asegura `auto_index=false` y `watcher_enabled=false` de forma idempotente, con un marcador `<config>/.harness-config-<version>` para no repetirlo en cada arranque.
+6. Hace `exec` del binario con `"$@"`.
 
 Lee `harness.json` con `python3` (ya es requisito del harness).
 
 ### D5. Configuración aislada por repo
-El servidor guarda su config en `~/.config/codebase-memory-mcp/`. Para no tocar la del usuario ni la de otros repos, `scripts/cbm` exporta `XDG_CONFIG_HOME=<raíz>/.harness/cbm/config`. Si la tarea 1.2 muestra que el binario ignora `XDG_CONFIG_HOME`, el fallback es `HOME=<raíz>/.harness/cbm/home`, solo para el proceso del servidor. Las dos variantes dejan todo dentro de `.harness/cbm/`, que ya está ignorado.
+El servidor guarda su config en `~/.config/codebase-memory-mcp/`. Para no tocar la del usuario ni la de otros repos, `scripts/cbm` exporta `XDG_CONFIG_HOME=<raíz>/.harness/cbm/<entorno>/config`. El archivo efectivo queda entonces en `<config>/codebase-memory-mcp/config.json`, y la tarea 1.2 lo confirma y anota la ruta real. Si el binario ignora `XDG_CONFIG_HOME`, el fallback es `HOME=<raíz>/.harness/cbm/<entorno>/home`, solo para el proceso del servidor. Las dos variantes dejan todo dentro de `.harness/cbm/`, que ya está ignorado. La prueba de aceptación es de comportamiento: con la config global en `auto_index=true`, un arranque vía `scripts/cbm` no indexa.
 
 ### D6. Exclusión de secretos con verificación fail-closed
 `secretos.rutas` son regex y `.cbmignore` usa sintaxis gitignore. No hay conversión automática fiable, así que:
 - `mcp.codebase_memory.ignorar` lleva patrones gitignore escritos a mano que reflejan `secretos.rutas` (`.env`, `.env.*`, `!.env.example`, `!.env.sample`, `!.env.template`, `.ssh/`, `.aws/`, `.kube/`, `.gnupg/`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.keystore`, `*.jks`, `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519`, `credentials.json`, `service-account*.json`, `client_secret*.json`, `.npmrc`, `.netrc`, `.pypirc`, `.git-credentials`, `.docker/config.json`, `.config/gh/`), más `.harness/cbm/`, `.harness/bin/` y `.codebase-memory/`.
 - `harness.py cbm verificar-secretos` recorre los archivos secretos reales del repo (`listar_secretos`) y comprueba cada uno con `git -c core.excludesFile=.cbmignore check-ignore --no-index -q <archivo>`. Eso imita las capas del servidor: `.gitignore` jerárquico más `.cbmignore`. Si alguno no queda excluido, falla y lo nombra.
-- `cbm-indexar.sh` corre esa verificación antes de cada indexado; `doctor` también.
+- Por qué `-c core.excludesFile=.cbmignore`: reemplaza a propósito el excludes global del usuario, porque el indexador no lo lee. Si se contara, un secreto excluido solo por el global saldría como «excluido» mientras el indexador sí lo indexa (falso negativo). Lo que sí se respeta es la jerarquía de `.gitignore` del repo, igual que el indexador; `--no-index` hace que la comprobación valga también para archivos versionados.
+- `cbm-indexar.sh` corre esa verificación antes de cada indexado; `scripts/cbm` la corre al arrancar el servidor (D4); `doctor` también.
+- Invalidación: tras cada indexado correcto se guarda el SHA-256 de `.cbmignore` en `<caché>/cbmignore.sha256`. Si antes de indexar no coincide, se borra la caché del entorno y se indexa en frío. Así ningún archivo recién excluido sobrevive en un índice viejo.
 - Un test de unidad crea un archivo de ejemplo por cada regex de `secretos.rutas` y exige que la verificación pase con el `ignorar` por defecto. Así, si alguien añade un regex en `secretos` y olvida su patrón en `ignorar`, el selftest falla.
 
 *Alternativa descartada:* traducir los regex a globs. Es frágil y daría una falsa sensación de cobertura.
 
 ### D7. Re-indexado: hooks finos, lógica en `scripts/cbm-indexar.sh`
-- `.githooks/post-merge` llama a `scripts/cbm-indexar.sh --fondo`. `.githooks/post-checkout` hace lo mismo, pero solo si `$3 = 1` (cambio de rama). Los dos terminan con `|| true; exit 0` y no imprimen nada.
+- `.githooks/post-merge` llama a `scripts/cbm-indexar.sh --fondo`. `.githooks/post-checkout` hace lo mismo, pero solo si `$3 = 1` (cambio de rama: `checkout`, `switch` y `worktree add`, que dispara `post-checkout` en el worktree nuevo, con su propia raíz y su propia `.harness/cbm/`). Los dos terminan con `|| true; exit 0` y no imprimen nada. `rebase` y `pull --rebase` quedan fuera a propósito: `post-checkout` salta a mitad del rebase con `$3=1`, y para no indexar un estado intermedio el hook no hace nada si existe `.git/rebase-merge` o `.git/rebase-apply` (en un worktree, bajo `git rev-parse --git-dir`). Esos casos se re-indexan con `cbm-indexar.sh`.
 - `cbm-indexar.sh [--fondo]`:
   1. Si la memoria está apagada, sale con 0 (en primer plano, con un mensaje de cómo encenderla).
-  2. Toma el lock con `mkdir .harness/cbm/indexando.lock` y guarda el PID. Un lock con PID muerto, o de más de 30 minutos, se considera huérfano y se retira.
-  3. Corre `verificar-secretos`.
+  2. Toma el lock con `mkdir .harness/cbm/<entorno>/indexando.lock` y guarda el PID. Un lock con PID muerto, o de más de 30 minutos, se considera huérfano y se retira.
+  3. Corre `verificar-secretos` y la invalidación de D6.
   4. Corre `scripts/cbm cli --quiet index_repository --repo-path <raíz>`.
-  5. Con `--fondo`, todo lo anterior va desacoplado (`nohup … &`, stdout/stderr a `.harness/cbm/ultimo-indexado.log`) y el script vuelve de inmediato con 0. Sin `--fondo`, propaga el código de salida.
+  5. Con `--fondo`, todo lo anterior va desacoplado (`nohup … &`, stdout/stderr a `.harness/cbm/<entorno>/ultimo-indexado.log`) y el script vuelve de inmediato con 0. Sin `--fondo`, propaga el código de salida.
 - Se elige git hooks en lugar de `auto_index` o watcher del servidor porque el harness controla cuándo se indexa (después de la verificación de secretos) y el servidor no arranca indexados por su cuenta.
 
 ### D8. Contenedor
-El Dockerfile recibe `CBM_VERSION`, `CBM_SHA256_AMD64` y `CBM_SHA256_ARM64` como build-args (sin valores por defecto, como `OPENCODE_VERSION`). Elige la arquitectura con `dpkg --print-architecture`, descarga con `curl`, verifica con `sha256sum -c` e instala en `/usr/local/bin/codebase-memory-mcp`. Hay que añadir `curl` al `apt-get install`. `ejec-contenedor` lee esos valores de `versiones.json` y etiqueta la imagen `harness-ejecutor:<opencode>-cbm<cbm>`, así que un upgrade fuerza la build. Además añade `.mcp.json` y `.cbmignore` a los montajes de solo lectura; `.harness/cbm/` queda escribible para que `build` pueda indexar.
+El Dockerfile recibe `CBM_VERSION`, `CBM_SHA256_AMD64` y `CBM_SHA256_ARM64` como build-args (sin valores por defecto, como `OPENCODE_VERSION`). Elige la arquitectura con `dpkg --print-architecture`, descarga con `curl`, verifica con `sha256sum -c` e instala en `/usr/local/bin/codebase-memory-mcp`. Hay que añadir `curl` al `apt-get install` y `ENV HARNESS_CONTENEDOR=1` (D4). `ejec-contenedor` lee esos valores de `versiones.json` y etiqueta la imagen `harness-ejecutor:<opencode>-cbm<cbm>`, así que un upgrade fuerza la build. Además añade `.mcp.json` y `.cbmignore` a los montajes de solo lectura; `.harness/cbm/` queda escribible para que `build` pueda indexar.
 
 ### D9. Plano de control y empaquetado
 - `control_plane.rutas` añade `^scripts/cbm(-[a-z]+\.sh)?$`, `^\.mcp\.json$` y `^\.cbmignore$`. Los scripts de la memoria deciden qué se indexa, así que su modificación exige aprobación humana.
@@ -103,10 +106,12 @@ El Dockerfile recibe `CBM_VERSION`, `CBM_SHA256_AMD64` y `CBM_SHA256_ARM64` como
 
 ## Risks / Trade-offs
 
-- [Supply chain: el checksum viene de la misma release que el binario] → Se fija una vez y se versiona: un cambio posterior en la release no pasa la verificación. Los upgrades son PRs del plano de control con aprobación humana. La firma Sigstore queda para un change posterior.
+- [Supply chain: el checksum viene de la misma release que el binario y no es una raíz de confianza independiente] → Se fija una vez y se versiona: un cambio posterior en la release no pasa la verificación. Los upgrades son PRs del plano de control con aprobación humana. No protege contra una release comprometida antes de fijar los valores; verificar la firma Sigstore (`checksums.txt.bundle`) es deuda con issue propio (riesgo aceptado por el usuario al elegir v0.11.0, publicada hace dos semanas).
 - [Un secreto con un nombre no previsto se indexa] → El indexador respeta `.gitignore`, `verificar-secretos` cubre todo lo que `secretos` reconoce y un test ata `ignorar` a `secretos.rutas`. Lo que `secretos` no reconoce tampoco lo protegen hoy las demás guardias. Es la misma frontera de siempre, documentada en SEGURIDAD.md.
 - [Un indexado en segundo plano consume CPU tras cada pull] → Hay lock (nunca dos a la vez) y el índice es incremental. Si molesta, `habilitado: false`.
-- [El caché `.harness/cbm/` es compartido entre host y contenedor] → Es la misma versión y la misma ruta de repo (el contenedor monta la ruta idéntica), y el lock evita escrituras concurrentes desde los hooks. Un `index_repository` de `build` simultáneo a un hook del host es un riesgo residual; el servidor usa SQLite con su propio bloqueo.
+- [Carreras de escritura en la caché] → Host y contenedor tienen cachés separadas (D4), y los hooks se serializan con el lock. Queda un residuo: `build` corriendo en el host (`scripts/ejec`, sin contenedor) llama a `index_repository` mientras un hook indexa. Es el modo no recomendado; la mitigación es `cbm-indexar.sh` para re-indexar a mano. Está documentado en harness-guide §16.
+- [El excludes global del usuario no cuenta en la verificación] → Es intencional (D6): el indexador tampoco lo lee.
+- [`rebase` no re-indexa] → Es una exclusión explícita del spec; se re-indexa a mano.
 - [OpenCode cambia el esquema de `tools` o `agent.tools`] → La versión de OpenCode está fijada (1.18.33). La tarea 1.3 lo verifica sobre esa versión real; si difiere, se usa la clave `permission` equivalente y se anota en HANDOFF.md.
 
 ## Migration Plan

@@ -12,7 +12,7 @@
 ## 1. Verificación temprana de dependencias externas (Open Questions)
 
 - [ ] 1.1 Descargar en un temporal fuera del repo el `.tar.gz` v0.11.0 de la plataforma del host, comprobar que su SHA-256 coincide con el de design.md → Context y anotar en HANDOFF.md la ruta del binario dentro del archivo (¿raíz o subcarpeta?); verificar con `shasum -a 256 <archivo>`
-- [ ] 1.2 Con ese binario: cómo informa su versión (`--version` u otro), si respeta `XDG_CONFIG_HOME` (`XDG_CONFIG_HOME=/tmp/x <bin> config set auto_index false` y luego `ls /tmp/x`) y si `cli --quiet index_repository --repo-path` y `cli --quiet list_projects` funcionan con `CBM_CACHE_DIR` apuntando a un temporal. Anota en HANDOFF.md qué variante de D5 aplica; verificar con la salida de esos comandos pegada en HANDOFF.md
+- [ ] 1.2 Con ese binario: cómo informa su versión (`--version` u otro), si respeta `XDG_CONFIG_HOME` (`XDG_CONFIG_HOME=/tmp/x <bin> config set auto_index false` y luego `find /tmp/x`), la ruta exacta del archivo de config resultante, y si `cli --quiet index_repository --repo-path` y `cli --quiet list_projects` funcionan con `CBM_CACHE_DIR` apuntando a un temporal. Anota en HANDOFF.md qué variante de D5 aplica y la ruta efectiva; verificar con la salida de esos comandos pegada en HANDOFF.md
 - [ ] 1.3 Con OpenCode 1.18.33: confirmar que `tools` global con `"codebase-memory_index_repository": false` más `agent.build.tools` en `true` vetan la herramienta a un subagente y la dejan a `build`. Si el esquema difiere, usar `permission` y anotarlo en HANDOFF.md; verificar listando las herramientas visibles para `revisor-gratis` y para `build` en una sesión de prueba (manual)
 
 ## 2. Versión fijada e instalador
@@ -23,12 +23,15 @@
 
 ## 3. Envoltorio y configuración aislada
 
-- [ ] 3.1 `scripts/cbm` según D4 y D5 (interruptor, resolución de binario por plataforma con comprobación de versión, `CBM_CACHE_DIR`, config aislada, `auto_index` y `watcher_enabled` apagados de forma idempotente, `exec "$@"`); verificar con `scripts/cbm cli --quiet list_projects` (código 0), con `habilitado:false` (código 1 y mensaje) y comprobando que `~/.config/codebase-memory-mcp/config.json` no cambió (compara `stat` antes y después)
+- [ ] 3.1 `scripts/cbm` según D4 y D5 (interruptor, resolución de binario por plataforma con comprobación de versión, caché y config por entorno `host`/`contenedor`, `verificar-secretos` al arrancar como servidor, `auto_index` y `watcher_enabled` apagados de forma idempotente, `exec "$@"`); verificar con `scripts/cbm cli --quiet list_projects` (código 0), con `habilitado:false` (código 1 y mensaje), comprobando que `~/.config/codebase-memory-mcp/config.json` no cambió (compara `stat` antes y después), y con un `.env` sin excluir (arrancar sin argumentos sale con 1 y nombra el archivo)
+- [ ] 3.2 Prueba de comportamiento de D5: con `auto_index=true` en una config «global» simulada (`HOME` temporal), arrancar `scripts/cbm` como servidor sobre un repo sin índice, esperar 10 s y cerrarlo; verificar que la caché del entorno sigue sin índice (`scripts/cbm cli --quiet list_projects` no lista el repo)
+- [ ] 3.3 Ruta con espacios: clonar el repo en un temporal con espacios en la ruta y arrancar el servidor con el `command` exacto que `sync` genera para OpenCode y para Claude (`${CLAUDE_PROJECT_DIR}` sustituido); verificar que los dos responden a `list_projects`
 
 ## 4. Secretos fuera del índice
 
 - [ ] 4.1 `harness.py cbm verificar-secretos` según D6 (`listar_secretos` + `git -c core.excludesFile=.cbmignore check-ignore --no-index -q`); código 0 si todo está excluido, 1 nombrando los archivos si no; verificar con el test 9.3
-- [ ] 4.2 Prueba real: con `.env` y `tmp/x.pem` de prueba en el repo, indexar y buscar con `scripts/cbm cli --quiet search_code` el contenido de esos archivos; verificar que no aparecen y borrar los archivos de prueba
+- [ ] 4.2 Invalidación de D6: guardar `cbmignore.sha256` tras cada indexado correcto; si difiere, borrar la caché del entorno antes de indexar; verificar con el test 9.6
+- [ ] 4.3 Prueba real: con `.env` y `tmp/x.pem` de prueba en el repo, indexar y buscar con `scripts/cbm cli --quiet search_code` el contenido de esos archivos; verificar que no aparecen y borrar los archivos de prueba
 
 ## 5. Adaptadores generados por sync
 
@@ -40,25 +43,27 @@
 
 ## 6. Claude Code
 
-- [ ] 6.1 `.claude/settings.json`: `permissions.deny` con las 4 herramientas `mcp__codebase-memory__*` de escritura, `enabledMcpjsonServers: ["codebase-memory"]` y `sandbox.filesystem.denyWrite` con `./.mcp.json`, `./.cbmignore` y `./scripts` (ya está); verificar con el test 9.2 y, en una sesión de Claude Code, que `delete_project` se deniega y `list_projects` responde (manual)
+- [ ] 6.1 `.claude/settings.json`: `permissions.deny` con 4 reglas literales (`mcp__codebase-memory__index_repository`, `mcp__codebase-memory__delete_project`, `mcp__codebase-memory__manage_adr` y `mcp__codebase-memory__ingest_traces`, sin llaves ni comodines), `enabledMcpjsonServers: ["codebase-memory"]` y `sandbox.filesystem.denyWrite` con `./.mcp.json`, `./.cbmignore` y `./scripts` (ya está); verificar con el test 9.2 y, en una sesión de Claude Code, que `delete_project` se deniega y `list_projects` responde (manual)
 
 ## 7. Re-indexado
 
-- [ ] 7.1 `scripts/cbm-indexar.sh [--fondo]` según D7 (interruptor, lock con mkdir y PID y limpieza de huérfanos, `verificar-secretos`, `index_repository`, log en `.harness/cbm/ultimo-indexado.log`); verificar en primer plano (código 0) y con `--fondo` (vuelve en < 1 s, `time bash scripts/cbm-indexar.sh --fondo`)
-- [ ] 7.2 `.githooks/post-merge` y `.githooks/post-checkout` (este último solo con `$3 = 1`), ejecutables, siempre `exit 0` y sin salida; verificar con `git checkout -b tmp-cbm && git checkout -` (aparece un log nuevo), con `git checkout -- README.md` (no aparece log nuevo) y con el binario renombrado (git no muestra errores)
+- [ ] 7.1 `scripts/cbm-indexar.sh [--fondo]` según D7 (interruptor, lock por entorno con mkdir y PID y limpieza de huérfanos, `verificar-secretos`, invalidación, `index_repository`, log en `.harness/cbm/<entorno>/ultimo-indexado.log`); verificar en primer plano (código 0) y con `--fondo` (vuelve en < 1 s, `time bash scripts/cbm-indexar.sh --fondo`)
+- [ ] 7.2 `.githooks/post-merge` y `.githooks/post-checkout` (este último solo con `$3 = 1` y sin rebase en curso), ejecutables, siempre `exit 0` y sin salida; verificar con el test 9.7 y a mano: `git switch -c tmp-cbm && git switch -` (log nuevo), `git checkout -- README.md` (sin log nuevo), `git worktree add ../wt-cbm -b tmp-wt` (log nuevo en `../wt-cbm/.harness/cbm/host/`), un `git rebase` (sin indexado a mitad) y con el binario renombrado (git no muestra errores)
 - [ ] 7.3 Dos disparos seguidos no lanzan dos indexados; verificar con `bash scripts/cbm-indexar.sh --fondo; bash scripts/cbm-indexar.sh --fondo; pgrep -fc "index_repository"` (≤ 1)
 
 ## 8. Contenedor del ejecutor
 
-- [ ] 8.1 `.harness/contenedor/Dockerfile` según D8 (`curl` en apt, build-args sin defecto, `sha256sum -c` e instalación en `/usr/local/bin`); verificar con `scripts/ejec-contenedor --rebuild --shell` → `scripts/cbm cli --quiet list_projects` (manual)
+- [ ] 8.1 `.harness/contenedor/Dockerfile` según D8 (`curl` en apt, build-args sin defecto, `sha256sum -c`, instalación en `/usr/local/bin` y `ENV HARNESS_CONTENEDOR=1`); verificar además que dentro del contenedor la caché es `.harness/cbm/contenedor/`; verificar con `scripts/ejec-contenedor --rebuild --shell` → `scripts/cbm cli --quiet list_projects` (manual)
 - [ ] 8.2 `scripts/ejec-contenedor`: build-args desde `versiones.json`, etiqueta `harness-ejecutor:<opencode>-cbm<cbm>` y `.mcp.json` y `.cbmignore` en los montajes de solo lectura; verificar con `docker image ls harness-ejecutor` tras la build y cambiando la versión en una copia local (pide build nueva sin `--rebuild`)
 
 ## 9. Selftest (`scripts/test_harness.py`)
 
 - [ ] 9.1 Tests de `sync`: encendido genera `.mcp.json`, las claves de `opencode.json` y `.cbmignore`; apagado los retira; conserva otros servidores y claves; `sync --check` detecta la deriva; verificar con `python3 -m unittest discover -s scripts -p 'test_*.py'`
-- [ ] 9.2 Test: `.claude/settings.json → permissions.deny` cubre `mcp__<servidor>__<w>` para cada herramienta de `herramientas_escritura`, y `opencode.json` las veta globalmente y las abre solo a `agentes_escritura`; verificar con el selftest
-- [ ] 9.3 Test: por cada regex de `secretos.rutas` se crea un archivo de ejemplo y `verificar-secretos` pasa con el `ignorar` por defecto; con un patrón quitado de `.cbmignore`, falla nombrando el archivo; `.env.example` no cuenta como secreto; verificar con el selftest
-- [ ] 9.4 Test: con `habilitado: false`, `cbm-indexar.sh --fondo` y los hooks salen con 0 sin crear `.harness/cbm/ultimo-indexado.log`; verificar con el selftest
+- [ ] 9.2 Test: `.claude/settings.json → permissions.deny` contiene literalmente `mcp__<servidor>__<w>` para cada herramienta de `herramientas_escritura` (sin llaves ni comodines), y `opencode.json` las veta globalmente y las abre solo a `agentes_escritura`; verificar con el selftest
+- [ ] 9.3 Test: por cada regex de `secretos.rutas` se crea un archivo de ejemplo y `verificar-secretos` pasa con el `ignorar` por defecto; con un patrón quitado de `.cbmignore`, falla nombrando el archivo; un `.gitignore` anidado que reincluye un secreto con `!` hace fallar la verificación; un excludes global del usuario (`core.excludesFile`) que sí lo cubriría no cambia el resultado; `.env.example` no cuenta como secreto; verificar con el selftest
+- [ ] 9.4 Test: con `habilitado: false`, `cbm-indexar.sh --fondo` y los hooks salen con 0 sin crear ningún `ultimo-indexado.log` bajo `.harness/cbm/`; verificar con el selftest
+- [ ] 9.6 Test de invalidación con un binario falso (script que registra sus argumentos): cambiar `.cbmignore` entre dos indexados borra la caché del entorno antes del segundo; sin cambios, no la borra; verificar con el selftest
+- [ ] 9.7 Test de hooks con el mismo binario falso: `post-checkout` con `$3=0` no lanza nada; con `$3=1` lanza; con `.git/rebase-merge` presente no lanza; dos disparos seguidos con el lock tomado lanzan uno; los dos hooks salen con 0 aunque `cbm-indexar.sh` falle; verificar con el selftest
 - [ ] 9.5 Ampliar `TestEmpaquetado` y `test_contenedor_monta_control_plane_solo_lectura` con los nuevos scripts, hooks y montajes; verificar con el selftest
 
 ## 10. Diagnóstico y empaquetado
