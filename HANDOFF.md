@@ -2,20 +2,14 @@
 
 - Fecha / herramienta / modelo: 2026-10-01 · OpenCode (build, `HARNESS_OVERRIDE=1`, fuera del contenedor) · `opencode-go/space-bunny-free` (gratis, cero retención)
 - Issue / spec: #2 · openspec/changes/add-codebase-memory-mcp (nivel 3, riesgo alto, OpenCode-zona-roja: autorizado)
-- Qué se hizo: grupos 0 (arquitecto), 1, 2, 3 y 4 completos, verificados y commiteados (`bde07f2` cierra 3.1–3.3 y 4.1–4.3).
-- Qué falta (tras el recorte del arquitecto): 3.4 (caché compartida, nueva), 5.1–5.6 (5.1–5.4 ya en el árbol sin commitear; 5.6 nueva), 6.1, 7.1–7.2, 9.1–9.3 y 9.7, 10.1–10.3, 11.1–11.3 y las revisiones 1 y 2 (la 3 es de Luna).
-- **Recorte y cambio de diseño del arquitecto (2026-10-01, después de S1):** ver `design.md` → «Revisión del 2026-10-01» y el plan de sesiones de `tasks.md`.
-  - **Caché única compartida por todos los repos** (`mcp.codebase_memory.cache_dir`, por defecto `~/.cache/ai-harness/cbm`), por tu hallazgo del daemon único. Estado local en `.harness/cbm/` y sin entornos ni `HARNESS_CONTENEDOR`; la invalidación borra solo el proyecto del repo con `cli delete_project`. Tus subcomandos `cbm invalidar-cache` y `cbm marcar-indexado` se aceptan, adaptados a eso. **`scripts/cbm` y esos subcomandos hay que rehacerlos (tarea 3.4).**
-  - **Acceso por rol:** nuevo `agentes_consulta` en `harness.json` (tarea 5.6).
-  - **Fuera:** grupo 8 (contenedor), 7.3, 9.4, 9.5 y 9.6 (su contenido va en 9.3 y 9.7).
-  - **Tu duda sobre 4.3 y 9.3:** el test 9.3 usa `.env` para el control negativo.
+- Qué se hizo: grupos 0 (arquitecto), 1, 2, 3, 4 y **3b, 5, 6 (S2)** completos; las marcas de 3.4, 5.1–5.6 y 9.1–9.3 están puestas y el árbol está limpio.
+- Qué falta: **6.1 (la parte manual)**, 1.3, 7.1, 7.2, 9.7, 10.1–10.3, 11.1–11.3, y las revisiones 1 y 2 (la 3 es de Luna) al final.
 - Decisiones tomadas y por qué: ver abajo («Hallazgos técnicos»).
 - Dudas para el arquitecto: ver abajo.
 - Riesgos: cambio grande del plano de control; el PR exige aprobación humana en GitHub.
-- Siguiente paso sugerido: S2 del plan de `tasks.md` = `/ejecutar-cambio add-codebase-memory-mcp grupo 3b,5,6`: primero `python3 scripts/harness.py sync` (harness.json cambió), luego 3.4, 5.6 y 6.1, después 9.1–9.3 delegados a @mecanico; con esos tests en verde, marcar 5.1–5.4 y hacer 5.5.
-- **Excepción de modelo autorizada por el usuario (2026-10-01, sesión S1):** el change es de riesgo **alto**, así que por `modelo_por_riesgo` esta sesión debería usar el modelo fuerte, pero el usuario autorizó explícitamente `space-bunny-free` (gratis, cero retención) porque la ventana de 5 h de Go estaba agotada. No se detuvo la ejecución por el chequeo de modelo. Cuando la ventana se reponga, las sesiones S2–S6 deben volver al modelo fuerte salvo autorización nueva.
-- Nota del arquitecto (2026-10-01), modelos: `build` queda por defecto en `opencode-go/deepseek-v4.1-flash`, pero **este change es de riesgo alto**: según `modelo_por_riesgo`, cada sesión de este change va con DeepSeek V4 Pro, elegido con `/models` al abrir la sesión (requiere la región «Global» activada en la cuenta de Go; respaldo `mimo-v2.6-pro`, luego `glm-5.3`), `@mecanico` a `opencode/mimo-v2.6-flash-free` (respaldo `opencode-go/mimo-v2.6-flash`), `recolector` y `contexto-largo` a `deepseek-v4-pro` (motivo: `docs/LECCIONES.md` §21). `sync` ya regeneró `.opencode/agents/*.md` y `opencode.json` en el árbol; commitéalos junto con la tarea 5.5. Si la calidad de DeepSeek en un grupo no alcanza (tests en rojo tras 3 intentos), anótalo aquí y cambia con `/models` al respaldo. La sesión S1 del 2026-10-01 no avanzó (agotó la ventana de 5 h, que es compartida entre modelos): retomar S1 desde cero.
-- Nota del arquitecto (2026-10-01): `ignorar` en `harness.json` pasó de `.ssh/`, `.aws/`, `.kube/`, `.gnupg/`, `.config/gh/` a la forma sin barra (cubre archivo y directorio; cierra la «frontera conocida» de abajo). El `.cbmignore` sin commitear está desactualizado: corre `python3 scripts/harness.py sync` antes de verificar 4.x y antes de 5.5.
+- Siguiente paso sugerido: S3 del plan de `tasks.md` = `/ejecutar-cambio add-codebase-memory-mcp grupo 7`: `scripts/cbm-indexar.sh` (7.1) y los hooks `post-merge`/`post-checkout` (7.2), y después 9.7 delegado a @mecanico.
+- **Excepción de modelo (2026-10-01):** el change es de riesgo **alto**, así que por `modelo_por_riesgo` cada sesión debería ir con el modelo fuerte; el usuario lo autorizó explícitamente para S1 y para S2 (`space-bunny-free`, gratis y cero retención). S3–S6 vuelven al modelo fuerte salvo autorización nueva.
+- Nota del arquitecto (2026-10-01), modelos: `build` queda por defecto en `opencode-go/deepseek-v4.1-flash`, pero **este change es de riesgo alto**: según `modelo_por_riesgo`, cada sesión de este change va con DeepSeek V4 Pro, elegido con `/models` al abrir la sesión (requiere la región «Global» activada en la cuenta de Go; respaldo `mimo-v2.6-pro`, luego `glm-5.3`), `@mecanico` a `opencode/mimo-v2.6-flash-free` (respaldo `opencode-go/mimo-v2.6-flash`), `recolector` y `contexto-largo` a `deepseek-v4-pro` (motivo: `docs/LECCIONES.md` §21). `sync` ya regeneró `.opencode/agents/*.md` y `opencode.json` en el árbol; commitéalos con la tarea 5.5. Si la calidad de DeepSeek en un grupo no alcanza (tests en rojo tras 3 intentos), anótalo aquí y cambia con `/models` al respaldo.
 
 ## Estado de los commits
 
@@ -23,18 +17,25 @@
 |---|---|---|
 | 0 (arquitecto) | 0.1–0.5 | ef8ea1a y anteriores |
 | 1 | 1.1, 1.2 (1.3 queda manual) | a9da587 |
-| 2 | 2.1–2.3 | a24c30a (incluye arreglos preexistentes del selftest: `TestAutoModificacion` no limpiaba `HARNESS_OVERRIDE` y fallaba al correr la suite con override; el helper `Repo` ahora excluye `.harness/bin` —binario de 289 MB— de los repos de prueba) |
+| 2 | 2.1–2.3 | a24c30a |
 | 3+4 | 3.1–3.3, 4.1–4.3 | bde07f2 |
-| 5 (en curso) | código COMPLETO en el árbol, SIN commitear y sin marcar | — |
+| 3b+5+6 (S2) | 3.4, 5.1–5.6, 6.1 (código), 9.1–9.3 | `bcca30a` (código) y `89799bb` (adaptadores + selftest) |
 
-## Qué hay en el árbol de trabajo SIN commitear (todo corresponde a tareas NO marcadas)
+**Nada sin commitear.** Selftest completo verde: **70 tests OK** (`python3 -m unittest discover -s scripts -p 'test_*.py'`, ~230 s). `python3 scripts/harness.py sync --check` en verde.
 
-- `scripts/harness.py` (modificado) — tareas 5.1–5.4, código COMPLETO pero SIN MARCAR: los cambios de `sync` (D1: genera `.mcp.json`, claves `mcp`/`tools`/`agent` de `opencode.json`, `.cbmignore`, sección «Memoria de código» de RUTAS.md; retira todo con `habilitado: false`; `sync --check` pasa) y el arreglo de `generar_rutas(cfg, root)` para leer la versión fijada. Su verificación formal son los tests 9.1/9.2, TODAVÍA NO ESCRITOS (grupo 9). El docstring de uso todavía no menciona `cbm` (tarea 10.3).
-- Adaptadores generados presentes en el árbol: `.mcp.json`, `.cbmignore`, `opencode.json`, `docs/harness/RUTAS.md`. Commitearlos es la tarea 5.5 (hacerlo junto con las marcas de 5.1–5.4 cuando pasen sus tests).
-- `.opencode/agents/{mecanmico,recolector,contexto-largo}.md`: los regeneró `sync` con los modelos que elegiste; se commitean con 5.5.
-- `harness.json` volvió a quedar EXACTO como en HEAD (la prueba del interruptor `habilitado:false` fue temporal y se restauró; verificado con `git diff` vacío y `sync --check` en verde).
+## Sesión S2 (grupo 3b, 5, 6): qué quedó comprobado y cómo
 
-## Verificación del grupo 3+4 (lo que sí quedó comprobado)
+- **3.4 (caché compartida), a mano con dos clones** (`git clone` de este repo a `/tmp/cbm-r3/{A,B}` con el binario enlazado): los dos responden a `list_projects` a la vez con el MISMO daemon y cada uno ve su proyecto (`private-tmp-cbm-r3-A`, `private-tmp-cbm-r3-B`); tocar `.cbmignore` en A borró solo el proyecto de A (B siguió ahí), el re-indexado en frío lo devolvió, y el `mtime` de `~/.cache/codebase-memory-mcp` del usuario no cambió (1790883897 antes y después).
+- **Los cuatro desenlaces de `cbm invalidar-cache`**, que el log distingue con frases exactas: `índice al día (las exclusiones no cambiaron)` · `índice del proyecto <n> borrado: se re-indexa en frío` · `este repo no estaba en el índice: se indexa en frío`. Si el borrado falla, sale 1 con `⛔` (fail-closed: un índice viejo sobreviviendo dejaría consultable un archivo recién excluido).
+- **La invalidación NO reimplementa la regla de nombres del servidor**: pregunta `scripts/cbm cli list_projects --format json` y empareja `root_path` (resuelto) con la raíz del repo; luego `scripts/cbm cli --quiet delete_project '{"project": "<nombre>"}'`. Regla observada en v0.11.0, por si hace falta: ruta real sin `/` inicial y con `/` y espacios como `-` (`/Users/x/repo` → `Users-x-repo`). Los tests usan un binario falso que devuelve `basename(raíz)`, así que **esa regla no está verificada por el selftest** (a propósito: la implementación no depende de ella).
+- **5.6**: `opencode.json` lleva `tools["codebase-memory_*"]: false` global, `agent.<consulta>.tools["codebase-memory_*"]: true`, y para cada consulta que no escribe, las cuatro de escritura en `false`. `build` no lleva claves por herramienta; `@mecanico` no recibe ninguna. Con `habilitado: false` se retiran todas las claves `codebase-memory_*` (y los dicts que quedan vacíos) sin tocar otras.
+- **6.1 (código)**: `.claude/settings.json` lleva las cuatro reglas literales `mcp__codebase-memory__<w>` en `permissions.deny`, `enabledMcpjsonServers: ["codebase-memory"]` y `./.mcp.json` + `./.cbmignore` en `sandbox.filesystem.denyWrite`.
+- **Extras que hubo que hacer para que esto fuera testeable y correcto** (no estaban en tasks.md, pero no cambian el contrato): `scripts/cbm` lee la config por el override `HARNESS_CONFIG` igual que `harness.py` (antes leía `<raíz>/harness.json` a pelo y las dos fuentes podían discrepar); `harness.py cbm ruta-cache` es la única fuente de la ruta de caché y expande `${VAR:-def}` y `~` (`os.path.expandvars` no entiende `${VAR:-def}`: por eso el `mkdir` creaba el directorio literal `${XDG_CACHE_HOME:-~/.cache}` dentro del repo, que ya se borró); `doctor` reporta el error de incoherencia en vez de reventar.
+- **Ojo con el estado de `opencode.json`**: a mitad de sesión apareció en el árbol con las claves VIEJAS por herramienta (las de la 5.6 sin aplicar) y `sync --check` lo delató. No se averigua quién lo escribió; si vuelve a pasar, `python3 scripts/harness.py sync` antes de commitear y `sync --check` justo antes.
+- **`git config core.hooksPath` estaba DESACTIVADO en este clon** (por eso `doctor` se quejaba y por eso el hook de commit no añadía el marcador `Harness-Override`). Lo activé a mano (config local, no commiteado). Si en otra sesión `doctor` dice «git hooks inactivos», es eso.
+- **Para @mecanico en S3 (9.7)**: en `scripts/test_harness.py` ya están `BINARIO_FALSO`, `TestMemoriaDeCodigo.instalar_binario_falso`, `env_indice` (pone `XDG_CACHE_HOME` y `CBM_FAKE_LOG` a un temporal) y `llamadas_a(herramienta)`. El binario falso responde `--version` con la versión fijada (obligatorio: `scripts/cbm` compara versión), `config set` como no-op, `list_projects --format json` y `delete_project`. Con `CBM_FAKE_VACIO=1` devuelve el índice vacío. **Nunca** tocar `~/.cache/ai-harness` ni `~/.cache/codebase-memory-mcp`.
+
+## Verificación del grupo 3+4 (S1)
 
 - Selftest completo verde sobre el árbol actual: **55 tests OK** (`python3 -m unittest discover -s scripts -p 'test_*.py'`).
 - 3.1: interruptor apagado → `scripts/cbm` sale **1** con mensaje; `~/.config` y `~/.cache/codebase-memory-mcp` del usuario con el mismo `mtime` antes y después (la config del usuario no se toca). El caso literal «`.env` sin excluir» se demostró con un `.gitignore` anidado que REINCLUYE el secreto (`sub/.gitignore` con `!.env`): sin el patrón en `.cbmignore`, `verificar-secretos` falla nombrando `sub/.env`. Ese es justo el caso que equityá el test 9.3.
@@ -58,9 +59,9 @@
 
 ## Dudas para el arquitecto
 
-- Ninguna bloqueante. La 1.3 (sesión real de OpenCode 1.18.33 para `tools`/`agent.tools` con prefijo `codebase-memory_`) sigue siendo verificación manual pendiente del humano.
-- **Para el arquitecto, menor:** la 4.2 dice «invalidación de D6» y el design la sitúa dentro de `cbm-indexar.sh` (D7 paso 3, tarea 7.1). Como la 4.2 es del grupo 4 y `cbm-indexar.sh` no existe hasta el grupo 7, la implementé como subcomandos reutilizables de `harness.py`: `cbm invalidar-cache` (compara el SHA-256 de `.cbmignore` con el guardado y borra la caché del entorno si difiere) y `cbm marcar-indexado` (lo guarda tras un indexado correcto). Así 7.1 solo tiene que invocarlos. Si prefieres la lógica dentro de `cbm-indexar.sh`, es un ajuste local sin cambio de comportamiento.
-- **Tensión menor entre 4.3 y el grupo 9:** el control negativo que la 4.3 describe («con un patrón quitado de `.cbmignore`, aparecen») no es observable con `*.pem` (ver arriba: `tmp/` y `not_tracked` lo tapan igual). El test 9.3 debe usar `.env` para el control negativo, no `*.pem`.
+- Ninguna bloqueante. Quedan dos verificaciones manuales para el humano: la 1.3 (sesión real de OpenCode 1.18.33 para `tools`/`agent.tools` con prefijo `codebase-memory_*`) y la parte manual de la 6.1 (que `delete_project` se deniega y `list_projects` responde en una sesión de Claude Code). El código de la 6.1 ya está y su parte automática la cubre el test 9.2.
+- **Resuelto en S2, cerrado:** la 4.2 («invalidación de D6») se quedó como subcomandos reutilizables de `harness.py` (`cbm invalidar-cache`, `cbm marcar-indexado`) y la 7.1 solo tiene que invocarlos. Con el cambio de diseño de S2, `invalidar-cache` ya no borra la caché entera sino el proyecto del repo con `cli delete_project`.
+- **Resuelto en S2, cerrado:** la tensión 4.3 ↔ 9.3. El control negativo de 9.3 usa `.env` y está escrito y en verde.
 
 ## Grupo 1 — Verificación temprana de dependencias externas
 
