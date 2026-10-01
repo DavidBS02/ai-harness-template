@@ -5,6 +5,7 @@ así que prueba exactamente lo que se instala en los proyectos.
 """
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -654,3 +655,322 @@ class TestRoutingYReproducibilidad(unittest.TestCase):
         sh("git add -f .env && git commit -qm leak --no-verify", self.r.dir)
         res = dict((m, n) for n, m in harness.doctor(self.r.dir))
         self.assertTrue(any("secretos versionados" in m and n == "error" for m, n in res.items()))
+
+
+# ==================================================== v0.12: memoria de código (cbm)
+
+# Un archivo de ejemplo por cada regex de secretos.rutas: si harness.json añade una regex y
+# aquí no hay ejemplo, el test falla y obliga a cubrirla.
+MUESTRAS_SECRETOS = {
+    "(^|/)\\.env$": [".env"],
+    "(^|/)\\.env\\.[^/]+$": [".env.local", "cfg/.env.production"],
+    "(^|/)\\.(ssh|aws|kube|gnupg)(/|$)": [".ssh/config", ".aws/credentials", ".kube/config", ".gnupg/gpg.conf"],
+    "(^|/)\\.config/gh(/|$)": [".config/gh/hosts.yml"],
+    "(^|/)\\.docker/config\\.json$": [".docker/config.json"],
+    "(^|/)\\.(npmrc|netrc|pypirc|git-credentials)$": [".npmrc", ".netrc", ".pypirc", ".git-credentials"],
+    "\\.(pem|key|p12|pfx|keystore|jks)$": ["certs/a.pem", "certs/a.key", "certs/a.p12", "certs/a.pfx", "certs/a.keystore", "certs/a.jks"],
+    "(^|/)id_(rsa|dsa|ecdsa|ed25519)$": ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"],
+    "(^|/)(credentials|service-account[^/]*|client_secret[^/]*)\\.json$": ["credentials.json", "service-account-dev.json", "client_secret_ab.json"],
+}
+
+# Binario falso de codebase-memory-mcp: responde la versión fijada, registra SU argv en
+# CBM_FAKE_LOG (una línea JSON por invocación) y contesta list_projects / delete_project.
+BINARIO_FALSO = '''#!/usr/bin/env python3
+import json, os, sys
+
+log = os.environ.get("CBM_FAKE_LOG")
+if log:
+    with open(log, "a") as f:
+        print(json.dumps({"argv": sys.argv[1:]}), file=f)
+raiz = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+version = json.load(open(os.path.join(raiz, ".harness", "versiones.json")))["binarios"]["codebase-memory-mcp"]["version"]
+args = sys.argv[1:]
+if args[:1] == ["--version"]:
+    print("codebase-memory-mcp " + version)
+elif args[:2] == ["config", "set"]:
+    pass
+elif "list_projects" in args:
+    proyectos = [] if os.environ.get("CBM_FAKE_VACIO") else [{"name": os.path.basename(raiz), "root_path": raiz, "branch": "main"}]
+    print(json.dumps({"projects": proyectos, "total": len(proyectos)}))
+elif "delete_project" in args:
+    print(json.dumps({"project": json.loads(args[-1])["project"], "status": "deleted"}))
+'''
+
+
+class TestMemoriaDeCodigo(unittest.TestCase):
+    """Tareas 9.1–9.3: adaptadores de sync, vetas por rol (Claude/OpenCode) y secretos + invalidación.
+
+    Todo corre en el repo temporal; el índice usa un binario falso y XDG_CACHE_HOME apunta a un
+    temporal, así que la caché real del usuario jamás se toca."""
+
+    def setUp(self):
+        self.r = Repo()
+        harness._CONFIABLE.clear()
+        os.environ.pop("HARNESS_OVERRIDE", None)
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        self.r.cerrar()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        harness._CONFIABLE.clear()
+
+    # ------------------------------------------------------------------ utilidades
+    def cfg(self):
+        return json.loads((self.r.dir / "harness.json").read_text())
+
+    def escribir_cfg(self, cfg):
+        (self.r.dir / "harness.json").write_text(json.dumps(cfg))
+
+    def mcp_cfg(self):
+        return self.cfg()["mcp"]["codebase_memory"]
+
+    def opencode(self):
+        return json.loads((self.r.dir / "opencode.json").read_text())
+
+    def interruptor(self, estado):
+        c = self.cfg()
+        c["mcp"]["codebase_memory"]["habilitado"] = estado
+        self.escribir_cfg(c)
+
+    def cli(self, *args, env=None):
+        return sh(["python3", "scripts/harness.py", *args], self.r.dir, env)
+
+    def quitar_patron(self, patron):
+        p = self.r.dir / ".cbmignore"
+        p.write_text("\n".join(l for l in p.read_text().splitlines() if l.strip() != patron) + "\n")
+
+    def nombrados(self, res):
+        """Archivos de la lista '⛔ … quedarían indexados' (una línea con sangría)."""
+        return [l.strip() for l in res.stderr.splitlines() if l.startswith("  ")]
+
+    def instalar_binario_falso(self):
+        arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine().lower()]
+        p = self.r.dir / f".harness/bin/{platform.system().lower()}-{arch}/codebase-memory-mcp"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(BINARIO_FALSO)
+        p.chmod(0o755)
+        return p
+
+    def env_indice(self, extra=None):
+        return {"XDG_CACHE_HOME": str(self.tmp / "cache"), "CBM_FAKE_LOG": str(self.tmp / "log.jsonl"), **(extra or {})}
+
+    def llamadas(self):
+        log = self.tmp / "log.jsonl"
+        return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
+
+    def llamadas_a(self, herramienta):
+        return [l for l in self.llamadas() if herramienta in l["argv"]]
+
+    # ------------------------------------------------------------------------- 9.1
+    def test_9_1_encendido_genera_mcp_json_cbmignore_y_claves_de_opencode(self):
+        harness.sync(self.r.dir)
+        mcp = json.loads((self.r.dir / ".mcp.json").read_text())
+        self.assertEqual(list(mcp), ["mcpServers"], ".mcp.json solo lleva mcpServers")
+        self.assertEqual(list(mcp["mcpServers"]), ["codebase-memory"])
+        self.assertEqual(mcp["mcpServers"]["codebase-memory"], {"command": "${CLAUDE_PROJECT_DIR}/scripts/cbm"})
+        lineas = (self.r.dir / ".cbmignore").read_text().splitlines()
+        self.assertIn("GENERADO", lineas[0], "cabecera GENERADO")
+        self.assertEqual(lineas[1:], self.mcp_cfg()["ignorar"], ".cbmignore refleja ignorar de harness.json")
+        oj = self.opencode()
+        self.assertIs(oj["tools"]["codebase-memory_*"], False, "veto global por patrón")
+        for a in self.mcp_cfg()["agentes_consulta"]:
+            self.assertIs(oj["agent"][a]["tools"]["codebase-memory_*"], True, a)
+
+    def test_9_1_apagado_retira_mcp_json_cbmignore_y_claves(self):
+        harness.sync(self.r.dir)
+        self.assertTrue((self.r.dir / ".mcp.json").exists())
+        self.interruptor(False)
+        harness.sync(self.r.dir)
+        self.assertFalse((self.r.dir / ".cbmignore").exists(), ".cbmignore se retira")
+        self.assertFalse((self.r.dir / ".mcp.json").exists(), "sin servidores .mcp.json se borra")
+        oj = self.opencode()
+        self.assertNotIn("mcp", oj)
+        self.assertNotIn("tools", oj, "solo había claves de codebase-memory")
+        agentes = oj.get("agent") or {}
+        for a, ag in agentes.items():
+            self.assertEqual([k for k in ag.get("tools", {}) if k.startswith("codebase-memory")], [], a)
+        self.assertNotIn("build", agentes, "build solo tenía claves de codebase-memory: se limpia el dict vacío")
+
+    def test_9_1_conserva_otros_servidores_y_claves_ajenas(self):
+        (self.r.dir / ".mcp.json").write_text(json.dumps({"mcpServers": {"otro": {"command": "x"}}}))
+        oj = self.opencode()
+        oj["mcp"]["otro"] = {"type": "local", "command": ["echo"]}
+        oj["tools"]["webfetch"] = True
+        oj["agent"]["explorador"]["tools"]["webfetch"] = True
+        oj["agent"]["mecanico"] = {"tools": {"webfetch": True}}
+        (self.r.dir / "opencode.json").write_text(json.dumps(oj))
+        harness.sync(self.r.dir)
+        self.assertEqual(set(json.loads((self.r.dir / ".mcp.json").read_text())["mcpServers"]), {"otro", "codebase-memory"})
+        oj = self.opencode()
+        self.assertIs(oj["tools"]["webfetch"], True)
+        self.assertIs(oj["agent"]["explorador"]["tools"]["webfetch"], True)
+        # apagado: retira lo suyo y lo ajeno sigue intacto
+        self.interruptor(False)
+        harness.sync(self.r.dir)
+        self.assertEqual(set(json.loads((self.r.dir / ".mcp.json").read_text())["mcpServers"]), {"otro"}, "el archivo ajeno no se borra")
+        self.assertFalse((self.r.dir / ".cbmignore").exists())
+        oj = self.opencode()
+        self.assertEqual(set(oj["mcp"]), {"otro"})
+        self.assertIs(oj["tools"]["webfetch"], True)
+        self.assertIs(oj["agent"]["explorador"]["tools"]["webfetch"], True)
+        for bloque in [oj["tools"]] + [a["tools"] for a in oj["agent"].values()]:
+            self.assertEqual([k for k in bloque if k.startswith("codebase-memory")], [], "claves propias retiradas")
+
+    def test_9_1_sync_check_detecta_la_deriva(self):
+        harness.sync(self.r.dir)
+        self.assertEqual(harness.sync(self.r.dir, check=True), [])
+        (self.r.dir / ".mcp.json").unlink()
+        self.assertIn(".mcp.json", harness.sync(self.r.dir, check=True))
+        harness.sync(self.r.dir)
+        (self.r.dir / ".cbmignore").write_text("# editado a mano\n")
+        self.assertIn(".cbmignore", harness.sync(self.r.dir, check=True))
+        harness.sync(self.r.dir)
+        oj = self.opencode(); del oj["tools"]["codebase-memory_*"]
+        (self.r.dir / "opencode.json").write_text(json.dumps(oj))
+        self.assertIn("opencode.json", harness.sync(self.r.dir, check=True))
+        harness.sync(self.r.dir)
+        res = self.cli("sync", "--check")
+        self.assertEqual(res.returncode, 0, res.stdout)
+        (self.r.dir / ".cbmignore").unlink()
+        res = self.cli("sync", "--check")
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertIn(".cbmignore", res.stdout)
+
+    def test_9_1_sync_cli_config_incoherente_sale_1_y_advertencia(self):
+        c = self.cfg()
+        c["mcp"]["codebase_memory"]["agentes_consulta"] = ["explorador"]  # build (escritura) queda fuera
+        self.escribir_cfg(c)
+        res = self.cli("sync")
+        self.assertEqual(res.returncode, 1)
+        self.assertTrue(res.stderr.startswith("⛔ harness.json no es coherente"), res.stderr)
+
+    # ------------------------------------------------------------------------- 9.2
+    def test_9_2_claude_veta_las_herramientas_de_escritura_sin_comodines(self):
+        mcp = self.mcp_cfg()
+        deny = json.loads((self.r.dir / ".claude/settings.json").read_text())["permissions"]["deny"]
+        esperado = sorted(f"mcp__{mcp['servidor']}__{w}" for w in mcp["herramientas_escritura"])
+        self.assertEqual(sorted(e for e in deny if e.startswith("mcp__")), esperado)
+        for e in deny:
+            if e.startswith("mcp__"):
+                self.assertNotIn("{", e, "literal, sin llaves")
+                self.assertNotIn("*", e, "literal, sin comodines")
+                self.assertNotIn("<", e, "literal, sin marcadores")
+
+    def test_9_2_opencode_veta_global_y_abre_solo_a_agentes_escritura(self):
+        oj = self.opencode()
+        oj.setdefault("agent", {})["mecanico"] = {"tools": {"webfetch": True}}  # no está en agentes_consulta
+        (self.r.dir / "opencode.json").write_text(json.dumps(oj))
+        harness.sync(self.r.dir)
+        mcp, oj = self.mcp_cfg(), self.opencode()
+        pref = f"{mcp['servidor']}_"
+        vetadas = [f"{pref}{w}" for w in mcp["herramientas_escritura"]]
+        self.assertIs(oj["tools"][f"{pref}*"], False, "vetado globalmente")
+        self.assertEqual([k for k in oj["tools"] if k in vetadas], [], "las herramientas de escritura no viajan en el bloque global")
+        for a in mcp["agentes_consulta"]:
+            t = oj["agent"][a]["tools"]
+            self.assertIs(t[f"{pref}*"], True, a)
+            for k in vetadas:
+                if a in mcp["agentes_escritura"]:
+                    self.assertNotIn(k, t, f"{a} escribe: las herramientas quedan abiertas por el patrón")
+                else:
+                    self.assertIs(t[k], False, f"{a} solo consulta: {k} vetada")
+        for a, ag in oj["agent"].items():
+            if a not in mcp["agentes_consulta"]:
+                self.assertEqual([k for k in ag.get("tools", {}) if k.startswith(pref)], [], f"{a} no recibe claves del servidor")
+
+    # ------------------------------------------------------------------------- 9.3
+    def test_9_3_verificar_secretos_pasa_con_un_ejemplo_por_regex(self):
+        harness.sync(self.r.dir)
+        cfg = harness.cargar(self.r.dir)
+        self.assertEqual(set(MUESTRAS_SECRETOS), set(cfg["secretos"]["rutas"]), "cada regex de secretos.rutas tiene ejemplo")
+        for rutas in MUESTRAS_SECRETOS.values():
+            for ruta in rutas:
+                self.r.escribir(ruta, "x")
+        encontrados = {os.path.relpath(f, self.r.dir) for f in harness.listar_secretos(self.r.dir, cfg)}
+        for regex, rutas in MUESTRAS_SECRETOS.items():
+            for ruta in rutas:
+                self.assertIn(ruta, encontrados, f"{ruta} no lo detecta {regex}")
+        res = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_9_3_patron_quitado_de_cbmignore_falla_nombrando_el_archivo(self):
+        harness.sync(self.r.dir)
+        for rutas in MUESTRAS_SECRETOS.values():
+            for ruta in rutas:
+                self.r.escribir(ruta, "x")
+        self.quitar_patron(".env")  # control negativo con .env, no con *.pem (el indexador no rastrea .pem)
+        res = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(res.returncode, 1)
+        self.assertEqual(self.nombrados(res), [".env"], res.stderr)
+
+    def test_9_3_gitignore_anidado_que_reincluye_un_secreto_falla(self):
+        harness.sync(self.r.dir)
+        self.r.escribir(".env", "x")            # fuera: lo excluye .cbmignore
+        self.r.escribir("sub/.env", "x")        # vuelve a entrar por el ! del .gitignore anidado
+        self.r.escribir("sub/.gitignore", "!.env\n")
+        res = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(res.returncode, 1)
+        self.assertEqual(self.nombrados(res), ["sub/.env"], res.stderr)
+
+    def test_9_3_excludes_global_del_usuario_no_cambia_el_resultado(self):
+        harness.sync(self.r.dir)
+        self.r.escribir(".env", "x")
+        self.quitar_patron(".env")
+        sin_excludes = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(sin_excludes.returncode, 1)
+        self.assertEqual(self.nombrados(sin_excludes), [".env"])
+        # el excludes del usuario (config LOCAL del repo temporal) sí lo cubriría…
+        excludes = self.tmp / "excludes-usuario"
+        excludes.write_text(".env\n")
+        sh(["git", "config", "core.excludesFile", str(excludes)], self.r.dir)
+        self.assertEqual(sh(["git", "check-ignore", "--no-index", "-q", ".env"], self.r.dir).returncode, 0,
+                         "el excludes del usuario sí cubre .env")
+        # …pero la verificación no lo tiene en cuenta: mismo fallo nombrando el archivo
+        con_excludes = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(con_excludes.returncode, 1)
+        self.assertEqual(self.nombrados(con_excludes), [".env"], con_excludes.stderr)
+
+    def test_9_3_env_example_no_cuenta_como_secreto(self):
+        harness.sync(self.r.dir)
+        for ruta in (".env.example", ".env.sample", "docs/.env.template"):
+            self.r.escribir(ruta, "X=")
+        cfg = harness.cargar(self.r.dir)
+        encontrados = [os.path.relpath(f, self.r.dir) for f in harness.listar_secretos(self.r.dir, cfg)]
+        self.assertEqual([e for e in encontrados if "example" in e or "sample" in e or "template" in e], [])
+        res = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_9_3_invalidar_sin_cambios_no_llama_a_delete_project(self):
+        harness.sync(self.r.dir)
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        self.assertEqual(self.cli("cbm", "marcar-indexado", env=env).returncode, 0)
+        res = self.cli("cbm", "invalidar-cache", env=env)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(res.stdout.strip(), "índice al día (las exclusiones no cambiaron)")
+        self.assertEqual(self.llamadas_a("delete_project"), [], "sin cambios no se borra nada")
+
+    def test_9_3_invalidar_con_cbmignore_cambiado_borra_el_proyecto_del_repo(self):
+        harness.sync(self.r.dir)
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        self.assertEqual(self.cli("cbm", "marcar-indexado", env=env).returncode, 0)
+        (self.r.dir / ".cbmignore").write_text((self.r.dir / ".cbmignore").read_text() + "nuevo-patron\n")
+        res = self.cli("cbm", "invalidar-cache", env=env)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        nombre = Path(os.path.realpath(self.r.dir)).name
+        self.assertEqual(res.stdout.strip(), f"índice del proyecto {nombre} borrado: se re-indexa en frío")
+        borrados = self.llamadas_a("delete_project")
+        self.assertEqual(len(borrados), 1, self.llamadas())
+        argv = borrados[0]["argv"]
+        self.assertIn("--quiet", argv)
+        self.assertEqual(json.loads(argv[-1]), {"project": nombre}, "borra el proyecto de ESTE repo")
+
+    def test_9_3_invalidar_repo_ausente_en_el_indice_no_llama_a_delete_project(self):
+        harness.sync(self.r.dir)
+        self.instalar_binario_falso()
+        env = self.env_indice({"CBM_FAKE_VACIO": "1"})
+        res = self.cli("cbm", "invalidar-cache", env=env)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(res.stdout.strip(), "este repo no estaba en el índice: se indexa en frío")
+        self.assertEqual(self.llamadas_a("delete_project"), [], "nada que borrar")

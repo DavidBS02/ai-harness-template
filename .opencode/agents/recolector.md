@@ -1,7 +1,7 @@
 ---
 description: Corre skills BMAD de recolección (bmad-deep-recon y research) y deja un digest en _bmad-output/digests/ para que Claude decida. No edita código.
 mode: subagent
-model: opencode-go/kimi-k3
+model: opencode-go/deepseek-v4-pro
 permission:
   edit: ask
   bash:

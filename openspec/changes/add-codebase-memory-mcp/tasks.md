@@ -41,7 +41,7 @@
 
 ### 3b. Caché compartida (build, añadido el 2026-10-01)
 
-- [ ] 3.4 `scripts/cbm` y los subcomandos `cbm invalidar-cache` y `cbm marcar-indexado` según los nuevos D4, D5 y D6: `CBM_CACHE_DIR` = `mcp.codebase_memory.cache_dir` (por defecto `${XDG_CACHE_HOME:-$HOME/.cache}/ai-harness/cbm`) y `HOME` aislado bajo esa caché; sin entornos ni `HARNESS_CONTENEDOR`; estado local (hash, log y lock) en `.harness/cbm/`; la invalidación borra solo el proyecto de este repo con `cli delete_project`. Verificar: con dos clones temporales del repo, los dos responden a `list_projects` a la vez y cada uno ve su proyecto; cambiar `.cbmignore` en uno borra y re-indexa solo ese proyecto; `~/.cache/codebase-memory-mcp` del usuario sigue con el mismo `mtime`.
+- [x] 3.4 `scripts/cbm` y los subcomandos `cbm invalidar-cache` y `cbm marcar-indexado` según los nuevos D4, D5 y D6: `CBM_CACHE_DIR` = `mcp.codebase_memory.cache_dir` (por defecto `${XDG_CACHE_HOME:-$HOME/.cache}/ai-harness/cbm`) y `HOME` aislado bajo esa caché; sin entornos ni `HARNESS_CONTENEDOR`; estado local (hash, log y lock) en `.harness/cbm/`; la invalidación borra solo el proyecto de este repo con `cli delete_project`. Verificar: con dos clones temporales del repo, los dos responden a `list_projects` a la vez y cada uno ve su proyecto; cambiar `.cbmignore` en uno borra y re-indexa solo ese proyecto; `~/.cache/codebase-memory-mcp` del usuario sigue con el mismo `mtime`.
 
 ## 4. Secretos fuera del índice (build)
 
@@ -51,12 +51,12 @@
 
 ## 5. Adaptadores generados por sync (build)
 
-- [ ] 5.1 `sync` genera o retira `.mcp.json` (solo `mcpServers.codebase-memory`, conservando otros servidores y borrando el archivo si queda vacío) según D1; verificar con el test 9.1
-- [ ] 5.2 `sync` genera o retira en `opencode.json` las claves `mcp.codebase-memory`, `tools["codebase-memory_<w>"]=false` y `agent.<a>.tools[...]=true` para `agentes_escritura` según D1, sin tocar otras claves; verificar con el test 9.1
-- [ ] 5.3 `sync` genera o retira `.cbmignore` con cabecera `GENERADO` desde `ignorar`; verificar con el test 9.1
-- [ ] 5.4 `generar_rutas` añade a `docs/harness/RUTAS.md` una sección «Memoria de código» (estado, versión, quién escribe); verificar con `python3 scripts/harness.py sync && grep -n "Memoria de código" docs/harness/RUTAS.md`
-- [ ] 5.6 Acceso por rol (nuevo D1): `sync` escribe en `opencode.json` `tools["codebase-memory_*"]=false` global, `agent.<a>.tools["codebase-memory_*"]=true` para cada `agentes_consulta` y `false` por cada herramienta de escritura a los que no están en `agentes_escritura`; `sync` falla si `agentes_escritura` no está contenido en `agentes_consulta`; verificar con el test 9.2
-- [ ] 5.5 Correr `python3 scripts/harness.py sync` y commitear los adaptadores generados, incluidos `.opencode/agents/*.md` con los modelos nuevos; verificar con `python3 scripts/harness.py sync --check` (código 0)
+- [x] 5.1 `sync` genera o retira `.mcp.json` (solo `mcpServers.codebase-memory`, conservando otros servidores y borrando el archivo si queda vacío) según D1; verificar con el test 9.1
+- [x] 5.2 `sync` genera o retira en `opencode.json` las claves `mcp.codebase-memory`, `tools["codebase-memory_<w>"]=false` y `agent.<a>.tools[...]=true` para `agentes_escritura` según D1, sin tocar otras claves; verificar con el test 9.1
+- [x] 5.3 `sync` genera o retira `.cbmignore` con cabecera `GENERADO` desde `ignorar`; verificar con el test 9.1
+- [x] 5.4 `generar_rutas` añade a `docs/harness/RUTAS.md` una sección «Memoria de código» (estado, versión, quién escribe); verificar con `python3 scripts/harness.py sync && grep -n "Memoria de código" docs/harness/RUTAS.md`
+- [x] 5.6 Acceso por rol (nuevo D1): `sync` escribe en `opencode.json` `tools["codebase-memory_*"]=false` global, `agent.<a>.tools["codebase-memory_*"]=true` para cada `agentes_consulta` y `false` por cada herramienta de escritura a los que no están en `agentes_escritura`; `sync` falla si `agentes_escritura` no está contenido en `agentes_consulta`; verificar con el test 9.2
+- [x] 5.5 Correr `python3 scripts/harness.py sync` y commitear los adaptadores generados, incluidos `.opencode/agents/*.md` con los modelos nuevos; verificar con `python3 scripts/harness.py sync --check` (código 0)
 
 ## 6. Claude Code (build)
 
@@ -69,9 +69,9 @@
 
 ## 9. Selftest (`scripts/test_harness.py`) (@mecanico)
 
-- [ ] 9.1 Tests de `sync`: encendido genera `.mcp.json`, las claves de `opencode.json` y `.cbmignore`; apagado los retira; conserva otros servidores y claves; `sync --check` detecta la deriva; verificar con `python3 -m unittest discover -s scripts -p 'test_*.py'`
-- [ ] 9.2 Test: `.claude/settings.json → permissions.deny` contiene literalmente `mcp__<servidor>__<w>` para cada herramienta de `herramientas_escritura` (sin llaves ni comodines), y `opencode.json` las veta globalmente y las abre solo a `agentes_escritura`; verificar con el selftest
-- [ ] 9.3 Test: por cada regex de `secretos.rutas` se crea un archivo de ejemplo y `verificar-secretos` pasa con el `ignorar` por defecto; con un patrón quitado de `.cbmignore`, falla nombrando el archivo; un `.gitignore` anidado que reincluye un secreto con `!` hace fallar la verificación; un excludes global del usuario (`core.excludesFile`) que sí lo cubriría no cambia el resultado; `.env.example` no cuenta como secreto. El control negativo usa `.env`, no `*.pem` (HANDOFF: el indexador nunca rastrea `.pem`). Invalidación con un binario falso que registra sus argumentos: cambiar `.cbmignore` entre dos indexados llama a `delete_project` con el proyecto de ese repo y sin cambios no lo llama; verificar con el selftest
+- [x] 9.1 Tests de `sync`: encendido genera `.mcp.json`, las claves de `opencode.json` y `.cbmignore`; apagado los retira; conserva otros servidores y claves; `sync --check` detecta la deriva; verificar con `python3 -m unittest discover -s scripts -p 'test_*.py'`
+- [x] 9.2 Test: `.claude/settings.json → permissions.deny` contiene literalmente `mcp__<servidor>__<w>` para cada herramienta de `herramientas_escritura` (sin llaves ni comodines), y `opencode.json` las veta globalmente y las abre solo a `agentes_escritura`; verificar con el selftest
+- [x] 9.3 Test: por cada regex de `secretos.rutas` se crea un archivo de ejemplo y `verificar-secretos` pasa con el `ignorar` por defecto; con un patrón quitado de `.cbmignore`, falla nombrando el archivo; un `.gitignore` anidado que reincluye un secreto con `!` hace fallar la verificación; un excludes global del usuario (`core.excludesFile`) que sí lo cubriría no cambia el resultado; `.env.example` no cuenta como secreto. El control negativo usa `.env`, no `*.pem` (HANDOFF: el indexador nunca rastrea `.pem`). Invalidación con un binario falso que registra sus argumentos: cambiar `.cbmignore` entre dos indexados llama a `delete_project` con el proyecto de ese repo y sin cambios no lo llama; verificar con el selftest
 - [ ] 9.7 Test de hooks con el mismo binario falso: `post-checkout` con `$3=0` no lanza nada; con `$3=1` lanza; con `.git/rebase-merge` presente no lanza; dos disparos seguidos con el lock tomado lanzan uno; los dos hooks salen con 0 aunque `cbm-indexar.sh` falle; con `habilitado: false` no lanzan nada ni crean `ultimo-indexado.log`; `TestEmpaquetado` incluye los scripts y hooks nuevos como ejecutables; verificar con el selftest
 
 ## 10. Diagnóstico y empaquetado (@mecanico; 10.1 build)

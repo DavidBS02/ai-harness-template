@@ -10,51 +10,51 @@ Cada skill de BMAD y OpenSpec pertenece a una clase; la clase decide herramienta
 |---|---|---|---|
 | decidir | claude | el modelo más capaz de tu plan (/model) | Decisiones que se vuelven contrato: SPEC, AD-*, propuesta y publicación de specs |
 | redactar | claude | el modelo mediano de tu plan (/model) | Elicitar, redactar y planear sin decidir contrato |
-| recolectar | opencode | `recolector` · `opencode-go/kimi-k3` | Leer mucho y resumir: deja un digest en _bmad-output/digests/ para que Claude decida |
+| recolectar | opencode | `recolector` · `opencode-go/deepseek-v4-pro` | Leer mucho y resumir: deja un digest en _bmad-output/digests/ para que Claude decida |
 | revisar | opencode | `revisor-bmad` · `omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA` | Revisión adversarial de artefactos o cambios con otra familia de modelos |
-| ejecutar | opencode | `build` · `opencode-go/glm-5.3` | Implementar un change de OpenSpec |
-| mecanico | opencode | `mecanico` · `opencode-go/glm-5.3-flash` | Tests, docs y trabajo repetitivo |
+| ejecutar | opencode | `build` · `opencode-go/deepseek-v4.1-flash` | Implementar un change de OpenSpec |
+| mecanico | opencode | `mecanico` · `opencode/mimo-v2.6-flash-free` | Tests, docs y trabajo repetitivo |
 | prohibido | — (bloqueada) | — | Implementa fuera de OpenSpec y rompe 'BMAD no ejecuta'. Usa /cambio + /ejecutar-cambio. |
 | libre | cualquiera | — | Skill genérica fuera del método (documentos, utilidades): se permite en ambas herramientas |
 
 ## Skills
 | Skill | Clase |
 |---|---|
-| `bmad-agent-architect` | decidir |
-| `bmad-architecture` | decidir |
-| `bmad-correct-course` | decidir |
-| `bmad-prd` | decidir |
-| `bmad-spec` | decidir |
-| `openspec-archive-change` | decidir |
-| `openspec-propose` | decidir |
-| `openspec-sync-specs` | decidir |
-| `openspec-update-change` | decidir |
-| `openspec-apply-change` | ejecutar |
-| `bmad-qa-generate-e2e-tests` | mecanico |
-| `bmad-agent-dev` | prohibido |
-| `bmad-build` | prohibido |
-| `bmad-build-auto` | prohibido |
-| `bmad-deep-recon` | recolectar |
-| `bmad-advanced-elicitation` | redactar |
-| `bmad-agent-analyst` | redactar |
-| `bmad-agent-pm` | redactar |
-| `bmad-agent-ux-designer` | redactar |
-| `bmad-brainstorming` | redactar |
-| `bmad-create-epics-and-stories` | redactar |
-| `bmad-customize` | redactar |
-| `bmad-forge-idea` | redactar |
-| `bmad-help` | redactar |
-| `bmad-party-mode` | redactar |
-| `bmad-prfaq` | redactar |
-| `bmad-product-brief` | redactar |
-| `bmad-project-context` | redactar |
-| `bmad-retrospective` | redactar |
-| `bmad-sprint-planning` | redactar |
-| `bmad-ux` | redactar |
-| `openspec-explore` | redactar |
-| `bmad-code-review` | revisar |
-| `bmad-review` | revisar |
-| `bmad-walkthrough` | revisar |
+| `bmad-agent-architect` | `decidir` |
+| `bmad-architecture` | `decidir` |
+| `bmad-correct-course` | `decidir` |
+| `bmad-prd` | `decidir` |
+| `bmad-spec` | `decidir` |
+| `openspec-archive-change` | `decidir` |
+| `openspec-propose` | `decidir` |
+| `openspec-sync-specs` | `decidir` |
+| `openspec-update-change` | `decidir` |
+| `openspec-apply-change` | `ejecutar` |
+| `bmad-qa-generate-e2e-tests` | `mecanico` |
+| `bmad-agent-dev` | `prohibido` |
+| `bmad-build` | `prohibido` |
+| `bmad-build-auto` | `prohibido` |
+| `bmad-deep-recon` | `recolectar` |
+| `bmad-advanced-elicitation` | `redactar` |
+| `bmad-agent-analyst` | `redactar` |
+| `bmad-agent-pm` | `redactar` |
+| `bmad-agent-ux-designer` | `redactar` |
+| `bmad-brainstorming` | `redactar` |
+| `bmad-create-epics-and-stories` | `redactar` |
+| `bmad-customize` | `redactar` |
+| `bmad-forge-idea` | `redactar` |
+| `bmad-help` | `redactar` |
+| `bmad-party-mode` | `redactar` |
+| `bmad-prfaq` | `redactar` |
+| `bmad-product-brief` | `redactar` |
+| `bmad-project-context` | `redactar` |
+| `bmad-retrospective` | `redactar` |
+| `bmad-sprint-planning` | `redactar` |
+| `bmad-ux` | `redactar` |
+| `openspec-explore` | `redactar` |
+| `bmad-code-review` | `revisar` |
+| `bmad-review` | `revisar` |
+| `bmad-walkthrough` | `revisar` |
 
 **Skills no listadas: bloqueadas en ambas herramientas** hasta clasificarlas con `/clasificar-skill <nombre>` en Claude Code.
 
@@ -89,11 +89,21 @@ Revisiones por riesgo: bajo → Revisión 1 · medio → + Revisión 2 · alto �
 ## Modelos por agente de OpenCode
 | Agente | Modelo |
 |---|---|
-| `build` | `opencode-go/glm-5.3` |
-| `mecanico` | `opencode-go/glm-5.3-flash` |
+| `build` | `opencode-go/deepseek-v4.1-flash` |
+| `mecanico` | `opencode/mimo-v2.6-flash-free` |
 | `explorador` | `opencode-go/deepseek-v4.1-flash` |
-| `contexto-largo` | `opencode-go/kimi-k3` |
-| `recolector` | `opencode-go/kimi-k3` |
+| `contexto-largo` | `opencode-go/deepseek-v4-pro` |
+| `recolector` | `opencode-go/deepseek-v4-pro` |
 | `revisor-gratis` | `omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR` |
 | `revisor-fuerte` | `omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA` |
 | `revisor-bmad` | `omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA` |
+
+## Memoria de código
+| Qué | Valor |
+|---|---|
+| Estado | encendida (`habilitado: true`) |
+| Versión | `0.11.0` (fijada en `.harness/versiones.json → binarios`) |
+| Quién consulta el índice | agente(s) `build`, `explorador`, `recolector`, `contexto-largo`, `revisor-gratis`, `revisor-fuerte`, `revisor-bmad` (el veto global `codebase-memory_*` se lo quita al resto) |
+| Quién escribe el índice | agente(s) `build` + scripts del harness (hooks post-merge/post-checkout, `cbm-indexar.sh`, `/init-harness`) |
+| Vetadas por defecto a Claude y al resto de agentes | `index_repository`, `delete_project`, `manage_adr`, `ingest_traces` |
+Detalle: `docs/harness-guide.md` §16.
