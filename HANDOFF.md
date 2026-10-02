@@ -118,7 +118,8 @@ Confirmar en una sesión real de OpenCode que el veto global `tools: {"codebase-
 - **10.1–10.3** (delegadas a @mecanico, diff revisado por build): `doctor` con la memoria
   encendida informa binario+versión fijada, secretos sin excluir, hooks de re-indexado
   ejecutables y existencia del índice; apagado, una sola línea `✓ memoria de código apagada`.
-  Severidades (según el spec): binario ausente/versión distinta → aviso; secreto sin excluir y
+  Severidades (según el spec): binario ausente → aviso; **versión distinta de la fijada →
+  error** (el envoltorio no arranca con otra, el spec lo pide como error); secreto sin excluir y
   hooks ausentes o sin `+x` → error; sin índice → aviso. `versiones` lista también `binarios`.
   `bootstrap.sh` copia los 3 scripts y los 2 hooks nuevos y añade las 3 líneas al `.gitignore`
   destino (sin duplicar). `instalar-frameworks.sh` llama a `cbm-instalar.sh` solo si

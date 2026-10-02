@@ -707,6 +707,17 @@ elif "delete_project" in args:
     print(json.dumps({"project": json.loads(args[-1])["project"], "status": "deleted"}))
 '''
 
+# Misma variante, pero duerme dentro de index_repository (CBM_FAKE_DUERME segundos, 8 por
+# defecto): deja el indexado EN VUELO en primer plano para poder observarlo y disparar un
+# segundo proceso mientras corre.
+BINARIO_FALSO_LENTO = BINARIO_FALSO.replace(
+    "args = sys.argv[1:]",
+    'args = sys.argv[1:]\n'
+    'if "index_repository" in args:\n'
+    '    import time\n'
+    '    time.sleep(float(os.environ.get("CBM_FAKE_DUERME", "8")))',
+    1)
+
 
 class TestMemoriaDeCodigo(unittest.TestCase):
     """Tareas 9.1–9.3: adaptadores de sync, vetas por rol (Claude/OpenCode) y secretos + invalidación.
@@ -986,6 +997,57 @@ class TestMemoriaDeCodigo(unittest.TestCase):
         self.assertEqual(res.stdout.strip(), "este repo no estaba en el índice: se indexa en frío")
         self.assertEqual(self.llamadas_a("delete_project"), [], "nada que borrar")
 
+    # --------------------------------------- regresión de las revisiones 1 y 2 (grupo 10,11)
+    def test_9_1_un_agente_fuera_de_agentes_consulta_no_conserva_ninguna_clave_cbm(self):
+        """Revisión 2: un agente que salía de agentes_consulta seguía con sus claves
+        `codebase-memory_*` en opencode.json; el requisito pide cero herramientas del servidor
+        para quien no está en la lista (solo se le dejan sus claves ajenas)."""
+        d = {"tools": {"webfetch": True},
+             "agent": {"agente-retirado": {"tools": {"codebase-memory_*": True,
+                                                     "codebase-memory_index_repository": True,
+                                                     "otra_clave": True}}}}
+        harness.claves_cbm_opencode(d, self.cfg())
+        t = d["agent"]["agente-retirado"]["tools"]
+        self.assertNotIn("codebase-memory_*", t,
+                         "el agente que dejó de estar en agentes_consulta no conserva el comodín "
+                         "del servidor: recibiría todas sus herramientas")
+        self.assertNotIn("codebase-memory_index_repository", t,
+                         "ni ninguna herramienta suelta del servidor")
+        self.assertEqual(list(t), ["otra_clave"], "las claves ajenas al servidor se conservan")
+        self.assertIs(d["tools"]["webfetch"], True, "las claves globales ajenas no se tocan")
+        for a in self.cfg()["mcp"]["codebase_memory"]["agentes_consulta"]:
+            self.assertIs(d["agent"][a]["tools"]["codebase-memory_*"], True, f"{a} conserva su clave")
+
+    def test_doctor_version_del_binario_distinta_de_la_fijada_es_error(self):
+        """Revisión 1: era un aviso; el spec pide ERROR, porque el envoltorio no arranca con
+        otra versión que la fijada."""
+        harness.sync(self.r.dir)
+        # binario instalado que responde con OTRA versión de la fijada en .harness/versiones.json
+        arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine().lower()]
+        p = self.r.dir / f".harness/bin/{platform.system().lower()}-{arch}/codebase-memory-mcp"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('#!/usr/bin/env python3\nprint("codebase-memory-mcp 0.0.0")\n')
+        p.chmod(0o755)
+        mensajes = [(n, m) for n, m in harness.doctor(self.r.dir) if m.startswith("codebase-memory-mcp")]
+        self.assertEqual(len(mensajes), 1, f"una sola verificación del binario: {mensajes}")
+        nivel, msg = mensajes[0]
+        self.assertEqual(nivel, "error",
+                         f"versión distinta de la fijada es ERROR, no aviso, porque el envoltorio "
+                         f"no arrancará con otra: {msg}")
+        self.assertIn("instalada 0.0.0", msg)
+        self.assertIn("fijada 0.11.0", msg)
+
+    def test_doctor_con_la_memoria_apagada_una_sola_linea_ok(self):
+        """10.1: apagada, doctor dice solo `✓ memoria de código apagada` y no inspecciona el binario."""
+        harness.sync(self.r.dir)
+        self.interruptor(False)
+        res = harness.doctor(self.r.dir)
+        self.assertEqual([(n, m) for n, m in res if "memoria de código" in m],
+                         [("ok", "memoria de código apagada")],
+                         "una sola línea, en nivel ok")
+        self.assertEqual([m for n, m in res if "codebase-memory" in m], [],
+                         "sin memoria no se verifica el binario ni el índice")
+
 
 # ==================================================== 9.7: hooks de re-indexado (D7)
 
@@ -1025,6 +1087,22 @@ class TestHooksReindexado(unittest.TestCase):
 
     def env_indice(self, extra=None):
         return {"XDG_CACHE_HOME": str(self.tmp / "cache"), "CBM_FAKE_LOG": str(self.tmp / "log.jsonl"), **(extra or {})}
+
+    def env_proceso(self, extra=None):
+        """Entorno COMPLETO para lanzar cbm-indexar.sh con subprocess (mismo aislamiento que sh():
+        XDG_CACHE_HOME y el log del binario falso van a temporales, y las variables de rol del
+        humano no se heredan)."""
+        e = {**os.environ, **self.env_indice(extra)}
+        for k in ("HARNESS_ROL", "HARNESS_OVERRIDE", "HARNESS_BRANCH"):
+            e.pop(k, None)
+        return e
+
+    def instalar_binario_lento(self):
+        """El binario falso, pero index_repository duerme para que el indexado dure en el tiempo."""
+        p = self.instalar_binario_falso()
+        p.write_text(BINARIO_FALSO_LENTO)
+        p.chmod(0o755)
+        return p
 
     def llamadas(self):
         log = self.tmp / "log.jsonl"
@@ -1153,3 +1231,139 @@ class TestHooksReindexado(unittest.TestCase):
         self.assertEqual(self.llamadas(), [], "el binario falso no se invoca")
         self.assertFalse((self.estado() / "ultimo-indexado.log").exists(), "no se crea ultimo-indexado.log")
         self.assertFalse(self.estado().exists(), "cbm-indexar.sh sale sin tocar el estado local del repo")
+
+    # --------------------------------------- regresión de las revisiones 1 y 2 (grupo 10,11)
+    def test_lock_en_primer_plano_escribe_pid_y_el_fondo_no_arranca_un_segundo_indexado(self):
+        """Revisiones 1 y 2: `tomar_lock` creaba el lock con `mkdir` pero sin escribir `pid` en
+        primer plano, de modo que otro proceso lo veía huérfano y se lo robaba → DOS
+        `index_repository` a la vez. Aquí el primer plano DURA (el binario falso duerme dentro
+        de index_repository) y, mientras corre, se lanza un `--fondo`: tiene que respetarlo."""
+        self.instalar_binario_lento()
+        env = self.env_indice()
+        lock = self.estado() / "indexando.lock"
+        # primer plano con subprocess.Popen: el script se queda indexando y no vuelve solo
+        p = subprocess.Popen(["bash", "scripts/cbm-indexar.sh"], cwd=self.r.dir,
+                             env=self.env_proceso(),
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        self.addCleanup(self.matar, p)
+        self.assertTrue(self.esperar(lambda: self.indexados() >= 1, seg=90),
+                        f"el indexado en primer plano no llegó a index_repository; log:\n{self.log_indexado()}")
+        self.assertTrue(lock.exists(), "mientras el primer plano indexa, su lock sigue ahí")
+        pid = (lock / "pid").read_text().strip() if (lock / "pid").exists() else ""
+        self.assertTrue(pid.isdigit(),
+                        "el lock en primer plano lleva escrito SU PID: sin PID otro proceso lo "
+                        "considera huérfano, se lo roba y salen dos indexados a la vez")
+        # segundo disparo, en segundo plano, mientras el primero sigue dentro de index_repository
+        p2 = sh(["bash", "scripts/cbm-indexar.sh", "--fondo"], self.r.dir, env)
+        self.assertEqual(p2.returncode, 0, p2.stderr)
+        self.assertEqual((lock / "pid").read_text().strip(), pid,
+                         "el --fondo ve un lock con PID vivo y no se lo roba: el PID no cambia")
+        self.assertTrue(self.esperar(lambda: p.poll() is not None, seg=60),
+                        "el indexado en primer plano termina (el binario falso solo duerme)")
+        salida = p.stdout.read()
+        p.stdout.close()
+        self.assertEqual(p.returncode, 0, salida)
+        self.assertTrue(self.esperar(lambda: not lock.exists(), seg=30),
+                        f"al salir, el primer plano suelta SU lock; log:\n{self.log_indexado()}\n{salida}")
+        self.assertEqual(self.indexados(), 1,
+                         "solo UNA llamada a index_repository: el --fondo respeta el lock del "
+                         "indexado que ya corre en primer plano")
+
+
+# ============================================== regresión del lock portable (revisiones 1 y 2)
+
+
+class TestLockDelIndexador(unittest.TestCase):
+    """Regresión de las revisiones 1 y 2 sobre `scripts/cbm-indexar.sh` (edad_lock / tomar_lock).
+
+    En GNU/Linux `stat -f %m` no falla: imprime `?` y sale con 0, así que el fallback a
+    `stat -c %Y` nunca corría, la edad quedaba vacía y `[ "" -lt 1800 ]` era falso: CUALQUIER
+    lock se robaba, incluso uno vivo. En macOS (donde corren los tests) `stat -f` funciona, por
+    eso los tests verdes no lo pillarán nunca: por eso aquí se afirma además que el script no
+    depende de la forma BSD de stat. Se ejercitan las funciones EXTRAÍDAS del script real, en
+    bash, con el repo temporal; no se indexa nada y la caché queda en un temporal."""
+
+    def setUp(self):
+        self.r = Repo()
+        harness._CONFIABLE.clear()
+        os.environ.pop("HARNESS_OVERRIDE", None)
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        self.r.cerrar()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        harness._CONFIABLE.clear()
+
+    # ------------------------------------------------------------------ utilidades
+    def funciones(self, *nombres):
+        """Definiciones de funciones copiadas del script real (una sola línea `}` cierra cada una)."""
+        src = (self.r.dir / "scripts/cbm-indexar.sh").read_text().splitlines()
+        out, dentro = [], False
+        for l in src:
+            if not dentro and any(l.startswith(f"{n}() {{") for n in nombres):
+                dentro = True
+            if dentro:
+                out.append(l)
+                if l == "}":
+                    dentro = False
+        texto = "\n".join(out)
+        for n in nombres:
+            self.assertIn(f"{n}() {{", texto, f"scripts/cbm-indexar.sh debe definir {n}")
+        return texto
+
+    def correr_bash(self, script):
+        """Ejecuta un script bash con las funciones del indexador (caché a un temporal)."""
+        p = self.tmp / "proba.sh"
+        p.write_text(script)
+        return sh(["bash", str(p)], self.r.dir, {"XDG_CACHE_HOME": str(self.tmp / "cache")})
+
+    def matar(self, p):
+        p.kill()
+        p.wait()
+
+    def lock(self):
+        return self.r.dir / ".harness/cbm/indexando.lock"
+
+    # ------------------------------------------------------------------------- regresión
+    def test_edad_lock_imprime_un_entero_y_un_lock_ajeno_no_se_roba(self):
+        funcs = self.funciones("edad_lock", "tomar_lock")
+        lock = self.lock()
+        durmiente = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(self.matar, durmiente)
+        # sin lock: entero grande (999999 = huérfano de hace muchísimo tiempo), nunca vacío
+        r = self.correr_bash(f'LOCK="{lock}"\nESTADO="{lock.parent}"\n{funcs}\nedad_lock\n')
+        edad = r.stdout.strip()
+        self.assertRegex(edad, r"^\d+$",
+                         f"edad_lock imprime SIEMPRE un entero, nunca vacío ni '?': {r.stdout!r} {r.stderr!r}")
+        self.assertGreaterEqual(int(edad), 999999, "sin lock la edad es grande (nadie debe tener prisa por robarlo)")
+        # los dos locks que hay que respetar: recién creado sin PID (se está escribiendo) y con PID vivo
+        for descripcion, pid in (("recién creado y todavía sin PID", ""), ("con un PID vivo", str(durmiente.pid))):
+            shutil.rmtree(lock, ignore_errors=True)
+            lock.mkdir(parents=True)
+            if pid:
+                (lock / "pid").write_text(pid)
+            r = self.correr_bash(f'LOCK="{lock}"\nESTADO="{lock.parent}"\n{funcs}\n'
+                                 'tomar_lock && echo ROBADO || echo RESPETADO\n')
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("RESPETADO", r.stdout,
+                          f"un lock {descripcion} NO se roba: si se roba, este indexado y el "
+                          f"otro corren a la vez (salida: {r.stdout.strip()})")
+            if pid:
+                self.assertEqual((lock / "pid").read_text(), pid, "el lock queda intacto")
+            else:
+                self.assertFalse((lock / "pid").exists(), "el lock queda intacto")
+
+    def test_edad_lock_no_usa_stat_bsd_porque_en_gnu_imprime_interrogacion(self):
+        """Esta es la aserción que ata la regresión en GNU/Linux: `stat -f %m` (formato BSD)
+        devuelve `?` y sale con 0 en Linux, la edad quedaba vacía y el lock no se respetaba.
+        Se mira el CÓDIGO del script, sin comentarios: los comentarios pueden mencionar la
+        orden BSD para explicar por qué ya no se usa."""
+        lineas = [l for l in (self.r.dir / "scripts/cbm-indexar.sh").read_text().splitlines()
+                  if not l.lstrip().startswith("#")]
+        codigo = "\n".join(lineas)
+        self.assertNotIn("stat -f", codigo,
+                         "la edad del lock no se calcula con `stat -f` (orden BSD): en GNU/Linux "
+                         "`stat -f %m` imprime '?' y sale 0, la edad queda vacía y se roba "
+                         "cualquier lock, incluso uno vivo")
+        self.assertIn("python3", self.funciones("edad_lock"),
+                      "edad_lock calcula la edad con python3, que es la misma orden en macOS y en Linux")

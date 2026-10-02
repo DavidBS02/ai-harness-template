@@ -43,9 +43,11 @@ fi
 
 LOCK="$ESTADO/indexando.lock"
 edad_lock() {
-  local m
-  m="$(stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || echo 0)"
-  echo $(( $(date +%s) - m ))
+  # python3 y no `stat`: en GNU, `stat -f %m` imprime '?' y sale 0, así que el fallback a
+  # `stat -c %Y` nunca corría y la edad quedaba vacía (el lock no se respetaba en Linux).
+  python3 -c 'import os,sys,time
+try: print(int(time.time()-os.path.getmtime(sys.argv[1])))
+except OSError: print(999999)' "$LOCK" 2>/dev/null || echo 999999
 }
 tomar_lock() {
   mkdir -p "$ESTADO" 2>/dev/null || true
@@ -62,7 +64,10 @@ tomar_lock() {
     *)
       if kill -0 "$PID" 2>/dev/null && [ "$(edad_lock)" -lt 1800 ]; then return 1; fi;;
   esac
-  rm -rf "$LOCK" 2>/dev/null || true
+  # El robo se hace con `mv`, que es atómico: si dos procesos ven el mismo huérfano, solo uno
+  # lo renombra y el otro falla. Con `rm -rf` + `mkdir` ambos podían ganar y duplicar el indexado.
+  mv "$LOCK" "$LOCK.robo.$$" 2>/dev/null || return 1
+  rm -rf "$LOCK.robo.$$" 2>/dev/null || true
   if mkdir "$LOCK" 2>/dev/null; then echo $$ > "$LOCK/pid" 2>/dev/null || true; return 0; fi
   return 1
 }
