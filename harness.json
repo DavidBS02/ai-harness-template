@@ -83,9 +83,9 @@
     "explorador": "opencode-go/deepseek-v4.1-flash",
     "contexto-largo": "opencode-go/deepseek-v4-pro",
     "recolector": "opencode-go/deepseek-v4-pro",
-    "revisor-gratis": "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR",
-    "revisor-fuerte": "omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA",
-    "revisor-bmad": "omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA"
+    "revisor-gratis": "opencode-go/deepseek-v4.1-flash",
+    "revisor-fuerte": "opencode-go/deepseek-v4-pro",
+    "revisor-bmad": "opencode-go/deepseek-v4-pro"
   },
   "claude": {
     "decidir": "el modelo más capaz de tu plan (/model)",
@@ -367,14 +367,15 @@
       "opencode-go/kimi-k3"
     ],
     "revisor-gratis": [
-      "opencode-go/deepseek-v4.1-flash"
+      "opencode-go/mimo-v2.6-flash",
+      "opencode/longcat-2.5-preview-free"
     ],
     "revisor-fuerte": [
-      "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR",
+      "opencode-go/mimo-v2.6-pro",
       "opencode-go/kimi-k3"
     ],
     "revisor-bmad": [
-      "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR"
+      "opencode-go/mimo-v2.6-pro"
     ]
   },
   "mcp": {
