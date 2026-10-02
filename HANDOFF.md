@@ -1,13 +1,13 @@
 # Handoff (estado vivo de la rama)
 
-- Fecha / herramienta / modelo: 2026-10-01 · OpenCode (build, `HARNESS_OVERRIDE=1`, fuera del contenedor) · `opencode-go/space-bunny-free` (gratis, cero retención)
+- Fecha / herramienta / modelo: 2026-10-02 · OpenCode (build, `HARNESS_OVERRIDE=1`, fuera del contenedor) · `opencode-go/space-bunny-free` (gratis, cero retención; excepción del usuario, ver abajo)
 - Issue / spec: #2 · openspec/changes/add-codebase-memory-mcp (nivel 3, riesgo alto, OpenCode-zona-roja: autorizado)
-- Qué se hizo: grupos 0 (arquitecto), 1, 2, 3, 4 y **3b, 5, 6 (S2)** completos; las marcas de 3.4, 5.1–5.6 y 9.1–9.3 están puestas y el árbol está limpio.
-- Qué falta: **6.1 (la parte manual)**, 1.3, 7.1, 7.2, 9.7, 10.1–10.3, 11.1–11.3, y las revisiones 1 y 2 (la 3 es de Luna) al final.
+- Qué se hizo: grupos 0 (arquitecto), 1, 2, 3, 4, 3b, 5, 6, 7, 10 y 11.1–11.2 completos; **falta 11.3** (push + PR listo, esperando decisión del arquitecto sobre el riesgo residual del camino MCP, ver abajo).
+- Qué falta: **1.3 y la parte manual de 6.1** (humano), y **11.3**. Todo lo demás está implementado, commiteado y con tests verdes.
 - Decisiones tomadas y por qué: ver abajo («Hallazgos técnicos»).
 - Dudas para el arquitecto: ver abajo.
 - Riesgos: cambio grande del plano de control; el PR exige aprobación humana en GitHub.
-- Siguiente paso sugerido: S4 (la última) = `/ejecutar-cambio add-codebase-memory-mcp grupo 10,11`: 10.1–10.3 (delegables a @mecanico), 11.1–11.2, y después las revisiones 1 y 2 y la 11.3.
+- Siguiente paso sugerido: el arquitecto decide el riesgo residual del camino MCP («Revisiones 1 y 2» más abajo). Si lo acepta tal cual, 11.3 es push + `gh pr ready` + Revisión 3 (Luna). Si quiere cerrarlo de verdad, es `/opsx:update add-codebase-memory-mcp` (mi recomendación: opción 1, retirar `index_repository` de `agentes_escritura`).
 - Nota del arquitecto (2026-10-01, tras S3): los revisores de OmniRoute nunca se configuraron (`REEMPLAZA-CON-ID`). Ahora apuntan a OpenCode Go, en una familia distinta del modelo que construyó: `revisor-gratis` → `deepseek-v4.1-flash` (Revisión 1) y `revisor-fuerte` → `deepseek-v4-pro` (Revisión 2). `sync` ya regeneró `.opencode/agents/revisor-*.md`, `opencode.json` y `RUTAS.md` en el árbol: commitéalos en S4 junto con los demás adaptadores.
 - **Excepción de modelo (2026-10-01):** el change es de riesgo **alto**, así que por `modelo_por_riesgo` cada sesión debería ir con el modelo fuerte; el usuario lo autorizó explícitamente para S1, S2, S3 y **S4** (`space-bunny-free`, gratis y cero retención). S5 en adelante vuelven al modelo fuerte salvo autorización nueva.
 - Nota del arquitecto (2026-10-01), modelos: `build` queda por defecto en `opencode-go/deepseek-v4.1-flash`, pero **este change es de riesgo alto**: según `modelo_por_riesgo`, cada sesión de este change va con DeepSeek V4 Pro, elegido con `/models` al abrir la sesión (requiere la región «Global» activada en la cuenta de Go; respaldo `mimo-v2.6-pro`, luego `glm-5.3`), `@mecanico` a `opencode/mimo-v2.6-flash-free` (respaldo `opencode-go/mimo-v2.6-flash`), `recolector` y `contexto-largo` a `deepseek-v4-pro` (motivo: `docs/LECCIONES.md` §21). `sync` ya regeneró `.opencode/agents/*.md` y `opencode.json` en el árbol; commitéalos con la tarea 5.5. Si la calidad de DeepSeek en un grupo no alcanza (tests en rojo tras 3 intentos), anótalo aquí y cambia con `/models` al respaldo.
@@ -155,4 +155,95 @@ Confirmar en una sesión real de OpenCode que el veto global `tools: {"codebase-
   el binario con el daemon abierto). Por eso `doctor` aquí avisa `! codebase-memory-mcp no está
   instalado → bash scripts/cbm-instalar.sh`. Es un aviso, no un error, y es justo el escenario
   del spec («binario ausente»). Corre `bash scripts/cbm-instalar.sh` en el repo si lo quieres
-  instalado.
+  instalado. **Ya instalado** en S4.
+
+## Revisiones 1 y 2 (S4): qué se corrigió y qué queda abierto
+
+Cuatro rondas. El patrón se repitió: los revisores encontraron fallos reales cada vez, y varios
+solo aparecieron al repetir. **Revisión 1 final: APROBAR. Revisión 2 final: CORREGIR** (registradas
+en `.harness/revisiones/`, atadas a `a280fc5`).
+
+Corregido (todo con test de regresión que falla contra `8076b88`):
+- **El lock no escribía PID en primer plano.** Un hook concurrente lo veía «huérfano», lo robaba
+  con `rm -rf` y lanzaba un segundo indexado; el `trap` del primero le borraba el lock al worker.
+  Ahora el PID se escribe al crear el lock, un lock sin PID de menos de 60 s se respeta, y el
+  `trap` solo lo suelta si el PID sigue siendo el suyo.
+- **`edad_lock` estaba roto en GNU/Linux.** `stat -f %m || stat -c %Y` no hace fallback en Linux:
+  `stat -f %m` imprime `?` y sale 0, así que la edad quedaba vacía y `[ "" -lt 1800 ]` era falso →
+  **cualquier** lock se robaba, incluso vivo. En macOS funcionaba, así que los tests no lo pillaban.
+  Ahora la edad se calcula con `python3`. El test que ata esto mira el código del script, porque en
+  macOS el comportamiento viejo era indistinguible del nuevo.
+- **El robo del lock no era atómico** (`rm -rf` + `mkdir`): dos procesos sobre el mismo huérfano
+  podían ganar los dos. Reproducido con 40 concurrentes: 2 ganadores. Ahora es un `mv` (rename).
+  Verificado con 40 concurrentes: 1 ganador.
+- **`sync` no purgaba las claves** `codebase-memory_*` de un agente que salía de `agentes_consulta`:
+  conservaba el acceso a todas las herramientas del servidor.
+- **`doctor` daba aviso** con una versión de binario distinta de la fijada; el spec pide **error**.
+- **El gate de secretos no cubría el indexado.** Solo corría al arrancar el servidor. Ahora corre
+  antes de indexar y **sobre el repo que se indexa**. Ojo, esto costó dos rondas: la primera
+  corrección usaba `sed -n 's/^--repo-path //p'`, que **nunca casaba** con las formas reales
+  (`--repo-path` y el valor son dos argumentos separados), así que verificaba siempre la raíz y no
+  añadía cobertura ninguna. Medido: un repo ajeno con `.env` sin excluir devolvía
+  `status: indexed` y el secreto quedaba consultable. Ahora se recorre `$@` en bash y se aceptan
+  las tres formas (`--repo-path X`, `--repo-path=X`, JSON), más el orden invertido.
+- **`--args-file` y el JSON por stdin** son una cuarta y quinta vía de pasar el repo que el gate no
+  alcanza a leer: verificaba la raíz mientras se indexaba el repo del archivo. Se **rechazan** con
+  un mensaje que dice cómo indexar bien. Se prefirió no indexar a indexar sin comprobar.
+
+### ⚠️ LO QUE QUEDA ABIERTO (decisión del arquitecto, no del ejecutor)
+
+**El camino MCP del indexado no pasa por el gate, y el spec no lo tolera.**
+`opencode.json` y `.mcp.json` arrancan `scripts/cbm` **sin argumentos**: el gate corre una vez al
+arrancar, sobre `$RAIZ`, y luego `exec "$BINARIO" "$@"` **sustituye el proceso**. Las llamadas MCP
+`index_repository` que hace el agente `build` llegan por **stdio al daemon ya arrancado** y nunca
+vuelven a pasar por el envoltorio. Medido contra el binario real: `index_repository` sobre un repo
+con `.env` sin excluir indexa y el secreto queda consultable.
+
+El spec (specs/memoria-de-codigo/spec.md, «Secretos fuera del índice») exige verificar «**antes de
+cada indexado** y al arrancar el servidor». La verificación «antes de cada indexado» existe ahora
+en el camino de scripts (`cbm-indexar.sh`, hooks, `/init-harness`) y en el CLI, **no en el MCP**.
+Y `design.md → «Risks / Trade-offs»` **no menciona este riesgo**: sus ocho entradas son daemon
+único, supply chain, secreto con nombre no previsto, CPU, carreras de escritura, excludes global,
+`rebase` y esquema de `tools` de OpenCode.
+
+**No lo he tocado porque las tres salidas son de arquitectura y todas tocan archivos que el
+ejecutor no edita** (`harness.json`, el spec, o un componente nuevo):
+
+1. **Retirar `index_repository` de `mcp.codebase_memory.agentes_escritura`** (una línea de
+   `harness.json` + su test + ajuste del spec). Todo el indexado pasa entonces por
+   `scripts/cbm-indexar.sh` y los hooks, que **sí** verifican. Es la opción de menor superficie y
+   la más coherente con el diseño actual, que ya dice que «el servidor no indexa por su cuenta»
+   (design.md:96). Ojo: el spec tiene un escenario que dice «WHEN el agente `build` invoca
+   `index_repository` THEN la herramienta está disponible» (spec.md:96), así que **cambiar esto
+   es un cambio de spec**, no solo de config.
+2. **Un proxy MCP** que intercepte `tools/call` de `index_repository` y corra `verificar-secretos`
+   sobre el `repo_path` antes de reenviar. Es un componente nuevo.
+3. **Un plugin de OpenCode** que bloquee o re-chequee `codebase-memory_index_repository` cuando el
+   repo no es `$RAIZ`. Habría que tocar `.opencode/plugins/guardia.ts`.
+
+Mi recomendación es la **1**: menos piezas, y convierte la garantía de «se verifica antes de cada
+indexado» en algo cierto por construcción en vez de por acordarse de pasar por un wrapper.
+
+**Mientras tanto, esto queda documentado como riesgo residual aceptado** (como el resto de
+riesgos que el usuario acepta en design.md), a falta de que el arquitecto decida.
+
+### Desconfianza en el verde de la suite ( léelo antes de fiarte)
+
+Hubo **un** run de `python3 -m unittest -q scripts.test_harness` que devolvió `FAILED (failures=1,
+errors=22)` en S4. Los **tres** runs posteriores dieron `OK` (82 tests), y `doctor --tests` también
+dio RC 0. **No he resuelto la causa del fallo** y no lo he archivado como «flake»: los tests usan
+solo el binario falso (el fixture `Repo` excluye `.harness/bin` al copiar), así que no parece el
+daemon real, pero no está explicado. Si alguien ve la suite en rojo con 22 errores, es esto y hay
+que capturar la salida completa antes de darla por buena.
+
+### Otros hallazgos MENOR que siguen abiertos (no bloquean)
+
+- El `fail-closed` al final del gate de `scripts/cbm` verifica `$RAIZ` cuando no consigue
+  identificar el repo. No protege a otro repo; es defensa incompleta, no bypass del contrato.
+- El test del gate con «el repo indicado» llama a `harness.py`, no a `scripts/cbm`, así que no
+  cubre el parseo del envoltorio. Un fallo como el de la ronda 4 volvería a pasar inadvertido.
+- TOCTOU residual del lock (check-then-act entre leer el PID y robar), `edad_lock` fail-open ante
+  error, `env_proceso` heredando `HARNESS_CONFIG`, `estado_dir` sin expandir en shell, el SHA-256 no
+  re-verificado en runtime (solo al instalar), `eval` sobre `uname` en `cbm-instalar.sh`, los skips
+  de `listar_secretos`, y el timeout fijo de 30 min del lock (un indexado legítimo más largo que
+  eso permitiría otro en paralelo).

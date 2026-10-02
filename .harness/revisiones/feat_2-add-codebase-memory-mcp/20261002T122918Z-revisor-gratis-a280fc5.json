@@ -1,0 +1,15 @@
+{
+  "schema": "harness.revision/v1",
+  "rama": "feat/2-add-codebase-memory-mcp",
+  "change": "add-codebase-memory-mcp",
+  "commit_sha": "a280fc515bade0b38669af26ecec5f9bc8b65a2e",
+  "revisor": "revisor-gratis",
+  "rol": "ejecutor",
+  "modelo": "opencode-go/deepseek-v4.1-flash",
+  "veredicto": "APROBAR",
+  "hallazgos_sha256": "00e252430e05e0eed73004d33f190249fad8d166d6ce25b2283d3490c9974ad1",
+  "hallazgos": "VEREDICTO: APROBAR (ronda final, sobre el commit df1bd53)\n\nParseo verificado (todas las formas reales del contrato, design.md:20 y HANDOFF.md:81):\n| Invocacion | indexa | repo extraido |\n| cli --quiet index_repository --repo-path /r | 1 | /r OK |\n| cli index_repository --repo-path=/r | 1 | /r OK |\n| cli --quiet --repo-path /r index_repository (invertido) | 1 | /r OK |\n| cli index_repository '{\"repo_path\": \"/r\"}' | 1 | /r OK |\n| cli index_repository '{\"repo-path\":\"/r\"}' / '[{\"repo_path\":\"/r\"}]' | 1 | /r OK |\n| cli index_repository --repo-path \"/tmp/a b\" | 1 | /tmp/a b OK |\n| cli --quiet list_projects / search_code con index_repository en el patron | 0 | gate no corre OK |\n| --repo-path sin valor / --repo-path= / --repo_path / JSON {\"path\":...} | 1 | cae a $RAIZ |\n\nEl bucle for arg in \"$@\" NO toca $@: no hay shift ni set --, asi que el\nexec \"$BINARIO\" \"$@\" final sigue recibiendo los argumentos integros. Sin regresion de passthrough.\n\nCamino feliz: cbm-indexar.sh:98 invoca cli --quiet index_repository --repo-path \"$RAIZ\" (el gate\nre-verifica $RAIZ, redundante pero correcto); el arranque MCP sin argumentos verifica $RAIZ; las\nconsultas no pasan por el gate.\n\nHallazgos (los tres son MENOR, residuales o de cobertura):\n- [MENOR] scripts/cbm:78-81: si indexa=1 y el parser no identifica repo, se verifica $RAIZ. El\n  comentario \"fail-closed\" es engañoso: verificar la raiz no protege a otro repo. No es bypass\n  para el contrato verificado, pero es defensa incompleta.\n- [MENOR] scripts/test_harness.py:937: el unico test del gate sobre \"el repo indicado\" llama a\n  harness.py, no a scripts/cbm, asi que un fallo como el de la ronda 4 volveria a pasar\n  inadvertido. Cobertura faltante, no incumplimiento de tarea.\n- [MENOR] design.md:124 / spec.md:100: la llamada MCP index_repository de build con el servidor ya\n  arrancado no verifica secretos del repo objetivo. Se acepta como residual: el servidor es por\n  repo, build es el escritor de confianza y en el flujo normal indexa ese mismo repo, y el\n  envoltorio no puede interceptar llamadas in-process. Convendria una linea en Risks.\n\nCobertura del spec: sin cambios en este diff y respaldada por la suite en verde (RC 0). El fix\ndf1bd53 cierra el IMPORTANTE de la ronda 4 (el sed anterior nunca casaba con --repo-path X, dejaba\nprevio vacio y el gate verificaba siempre $RAIZ). Solo toca scripts/cbm, con Harness-Override.\ntasks.md: las [x] siguen respaldadas; 1.3, 6.1 y 11.3 sin marcar y son humanas, correcto.\nNo hay hallazgos BLOQUEANTES ni IMPORTANTES.\n",
+  "tokens": null,
+  "costo_usd": null,
+  "creado": "20261002T122918Z"
+}
