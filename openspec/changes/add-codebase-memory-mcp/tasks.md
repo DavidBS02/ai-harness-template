@@ -25,7 +25,7 @@
 
 - [x] 1.1 Descargar en un temporal fuera del repo el `.tar.gz` v0.11.0 de la plataforma del host, comprobar que su SHA-256 coincide con el de design.md → Context y anotar en HANDOFF.md la ruta del binario dentro del archivo (¿raíz o subcarpeta?); verificar con `shasum -a 256 <archivo>`
 - [x] 1.2 Con ese binario: cómo informa su versión (`--version` u otro), si respeta `XDG_CONFIG_HOME` (`XDG_CONFIG_HOME=/tmp/x <bin> config set auto_index false` y luego `find /tmp/x`), la ruta exacta del archivo de config resultante, y si `cli --quiet index_repository --repo-path` y `cli --quiet list_projects` funcionan con `CBM_CACHE_DIR` apuntando a un temporal. Anota en HANDOFF.md qué variante de D5 aplica y la ruta efectiva; verificar con la salida de esos comandos pegada en HANDOFF.md
-- [ ] 1.3 Con OpenCode 1.18.33: confirmar que `tools` global con `"codebase-memory_index_repository": false` más `agent.build.tools` en `true` vetan la herramienta a un subagente y la dejan a `build`. Si el esquema difiere, usar `permission` y anotarlo en HANDOFF.md; verificar listando las herramientas visibles para `revisor-gratis` y para `build` en una sesión de prueba (manual)
+- [x] 1.3 Con OpenCode 1.18.33: confirmar que `tools` global con `"codebase-memory_index_repository": false` más `agent.build.tools` en `true` vetan la herramienta a un subagente y la dejan a `build`. Si el esquema difiere, usar `permission` y anotarlo en HANDOFF.md; verificar listando las herramientas visibles para `revisor-gratis` y para `build` en una sesión de prueba (manual). Cerrada el 2026-10-02 por verificación del arquitecto (`opencode debug agent`): la evidencia está en `design.md → «Revisión del 2026-10-02 (tras S5)»`, punto 1.
 
 ## 2. Versión fijada e instalador
 
