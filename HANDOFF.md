@@ -4,6 +4,10 @@
 - Issue / spec: #2 · openspec/changes/add-codebase-memory-mcp (nivel 3, riesgo alto, OpenCode-zona-roja: autorizado)
 - Qué se hizo: grupos 0 (arquitecto), 1, 2, 3, 4, 3b, 5, 6, 7, 10, 11.1–11.2 y **12.1–12.3** completos; **falta 11.3** (push + PR listo), bloqueado por la Revisión 2 (ver «Sesión S5»).
 - Qué falta: **1.3 y la parte manual de 6.1** (humano), **11.3** y **decisión del arquitecto sobre los hallazgos de la Revisión 2** (ver abajo). Todo lo demás está implementado, commiteado y con tests verdes.
+- **Decisión del arquitecto sobre la Revisión 2 de S5 (2026-10-02):** los dos puntos quedan cerrados con evidencia en `design.md` → «Revisión del 2026-10-02 (tras S5)».
+  - **Punto 1:** el arquitecto verificó el veto con `opencode debug agent revisor-gratis`: las 4 de escritura quedan en deny tras el allow del agente. Esto **cierra la tarea 1.3**, que la siguiente sesión puede marcar citando esa sección.
+  - **Punto 2:** la falta de guardia MCP en `guardia.ts` es un riesgo aceptado; queda como deuda en el issue #5, junto con la migración a `permission`.
+  - **Siguiente paso, una sola sesión corta:** marcar 1.3, repetir solo la Revisión 2 (@revisor-fuerte) sobre HEAD, pasándole esa sección del design, y registrarla. Si aprueba, 11.3. Exceder `vueltas_max` solo hace que el gate exija la aprobación humana, que este PR ya necesita.
 - Decisiones tomadas y por qué: ver abajo («Hallazgos técnicos»).
 - Dudas para el arquitecto: ver abajo.
 - Riesgos: cambio grande del plano de control; el PR exige aprobación humana en GitHub.
