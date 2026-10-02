@@ -1588,6 +1588,9 @@ def main(argv):
     if cmd == "cbm":
         sub = args[0] if args else ""
         if sub == "verificar-secretos":
+            # El repo a comprobar puede no ser la raíz: el índice es COMPARTIDO y el servidor
+            # separa los proyectos por ruta, así que indexar otro repo debe verificarse también.
+            objetivo = Path(args[1]).resolve() if len(args) > 1 and args[1] else root
             try:
                 cfg = cargar(root, estricto=True)
             except ConfigError as e:
@@ -1596,7 +1599,7 @@ def main(argv):
             if not cfg.get("mcp", {}).get("codebase_memory", {}).get("habilitado"):
                 sys.stderr.write("memoria de código apagada: nada que verificar\n")
                 return 0
-            faltan = verificar_secretos_cbm(root, cfg)
+            faltan = verificar_secretos_cbm(objetivo, cfg)
             if faltan:
                 sys.stderr.write("⛔ memoria de código: estos archivos secretos quedarían indexados (no los excluye ni .gitignore ni .cbmignore):\n  "
                                  + "\n  ".join(faltan)

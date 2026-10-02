@@ -48,9 +48,19 @@ export XDG_CONFIG_HOME="$CACHE_DIR/config"   # inerte en v0.11.0 (ignora XDG); d
 export HOME="$CACHE_DIR/home"                # fallback activo: la config vive en $CBM_CACHE_DIR/_config.db
 mkdir -p "$CACHE_DIR" "$CACHE_DIR/config" "$CACHE_DIR/home"
 
-# arranque como servidor MCP: ningún secreto del repo puede quedar indexable
-if [ $# -eq 0 ]; then
-  python3 "$RAIZ/scripts/harness.py" cbm verificar-secretos || exit 1
+# Gate de secretos: al arrancar como servidor MCP (sin argumentos) y también antes de INDEXAR.
+# `verificar-secretos` solo cubría el arranque, así que un index_repository dirigido a otro repo
+# (la caché es compartida y el servidor separa los proyectos por ruta) se indexaba sin comprobarlo.
+# Las consultas (list_projects, search_code) no indexan nada y no pasan por aquí.
+indexa=0
+case " $* " in *" index_repository "*) indexa=1;; esac
+if [ $# -eq 0 ] || [ "$indexa" -eq 1 ]; then
+  repo_a_verificar="$RAIZ"
+  if [ "$indexa" -eq 1 ]; then
+    previo="$(printf '%s\n' "$@" | sed -n 's/^--repo-path //p' | head -1)"
+    [ -n "$previo" ] && repo_a_verificar="$previo"
+  fi
+  python3 "$RAIZ/scripts/harness.py" cbm verificar-secretos "$repo_a_verificar" || exit 1
 fi
 
 # auto_index y watcher apagados, idempotente (marcador por versión; vive en la caché compartida

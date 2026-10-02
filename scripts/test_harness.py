@@ -934,6 +934,25 @@ class TestMemoriaDeCodigo(unittest.TestCase):
         self.assertEqual(res.returncode, 1)
         self.assertEqual(self.nombrados(res), ["sub/.env"], res.stderr)
 
+    def test_9_3_verificar_secretos_mira_el_repo_indicado_no_solo_la_raiz(self):
+        """Revisión 2 (IMPORTANTE): el índice es COMPARTIDO y el servidor separa los proyectos
+        por ruta, así que indexar OTRO repo también tiene que pasar el gate. Antes solo se
+        comprobaba la raíz del harness al arrancar el servidor, y un index_repository dirigido a
+        otro repo se indexaba sin verificar nada."""
+        harness.sync(self.r.dir)
+        # un repo ajeno con su .cbmignore en regla: el gate pasa
+        otro = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, otro, True)
+        (otro / ".cbmignore").write_text((self.r.dir / ".cbmignore").read_text())
+        res = self.cli("cbm", "verificar-secretos", str(otro))
+        self.assertEqual(res.returncode, 0, f"un repo ajeno bien excluido pasa: {res.stderr}")
+        # el mismo repo con un secreto que su .cbmignore ya no cubre: el gate lo nombra
+        (otro / ".cbmignore").write_text("# vacío a propósito\n")
+        (otro / ".env").write_text("x")
+        res = self.cli("cbm", "verificar-secretos", str(otro))
+        self.assertEqual(res.returncode, 1, "un secreto sin excluir en el repo indicado detiene el indexado")
+        self.assertIn(".env", res.stderr, f"y lo nombra: {res.stderr}")
+
     def test_9_3_excludes_global_del_usuario_no_cambia_el_resultado(self):
         harness.sync(self.r.dir)
         self.r.escribir(".env", "x")
