@@ -11,14 +11,7 @@
         "baseURL": "{env:OMNIROUTE_BASE_URL}",
         "apiKey": "{env:OMNIROUTE_API_KEY}"
       },
-      "models": {
-        "REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA": {
-          "name": "DeepSeek V4 (NVIDIA NIM) - revisor fuerte"
-        },
-        "REEMPLAZA-CON-ID-DEL-COMBO-REVISOR": {
-          "name": "Combo revisor: DeepSeek V4 -> Mistral Large -> Gemini Flash"
-        }
-      }
+      "models": {}
     }
   },
   "mcp": {

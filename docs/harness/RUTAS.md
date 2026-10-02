@@ -11,7 +11,7 @@ Cada skill de BMAD y OpenSpec pertenece a una clase; la clase decide herramienta
 | decidir | claude | el modelo más capaz de tu plan (/model) | Decisiones que se vuelven contrato: SPEC, AD-*, propuesta y publicación de specs |
 | redactar | claude | el modelo mediano de tu plan (/model) | Elicitar, redactar y planear sin decidir contrato |
 | recolectar | opencode | `recolector` · `opencode-go/deepseek-v4-pro` | Leer mucho y resumir: deja un digest en _bmad-output/digests/ para que Claude decida |
-| revisar | opencode | `revisor-bmad` · `omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA` | Revisión adversarial de artefactos o cambios con otra familia de modelos |
+| revisar | opencode | `revisor-bmad` · `opencode-go/deepseek-v4-pro` | Revisión adversarial de artefactos o cambios con otra familia de modelos |
 | ejecutar | opencode | `build` · `opencode-go/deepseek-v4.1-flash` | Implementar un change de OpenSpec |
 | mecanico | opencode | `mecanico` · `opencode/mimo-v2.6-flash-free` | Tests, docs y trabajo repetitivo |
 | prohibido | — (bloqueada) | — | Implementa fuera de OpenSpec y rompe 'BMAD no ejecuta'. Usa /cambio + /ejecutar-cambio. |
@@ -94,9 +94,9 @@ Revisiones por riesgo: bajo → Revisión 1 · medio → + Revisión 2 · alto �
 | `explorador` | `opencode-go/deepseek-v4.1-flash` |
 | `contexto-largo` | `opencode-go/deepseek-v4-pro` |
 | `recolector` | `opencode-go/deepseek-v4-pro` |
-| `revisor-gratis` | `omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR` |
-| `revisor-fuerte` | `omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA` |
-| `revisor-bmad` | `omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA` |
+| `revisor-gratis` | `opencode-go/deepseek-v4.1-flash` |
+| `revisor-fuerte` | `opencode-go/deepseek-v4-pro` |
+| `revisor-bmad` | `opencode-go/deepseek-v4-pro` |
 
 ## Memoria de código
 | Qué | Valor |

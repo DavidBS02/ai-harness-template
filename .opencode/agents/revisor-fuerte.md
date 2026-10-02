@@ -1,7 +1,7 @@
 ---
 description: Revisor adversarial gratis (DeepSeek V4 vía OmniRoute). Úsalo SOLO si el riesgo es medio o alto. Solo lectura.
 mode: subagent
-model: omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA
+model: opencode-go/deepseek-v4-pro
 permission:
   edit: deny
   bash:

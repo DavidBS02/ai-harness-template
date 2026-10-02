@@ -1,7 +1,7 @@
 ---
 description: Revisor de conformidad gratis. Úsalo SIEMPRE antes del PR. Solo lectura. Modelo: combo OmniRoute DeepSeek V4 -> Mistral Large -> Gemini Flash.
 mode: subagent
-model: omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR
+model: opencode-go/deepseek-v4.1-flash
 permission:
   edit: deny
   bash:
