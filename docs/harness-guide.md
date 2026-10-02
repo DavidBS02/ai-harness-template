@@ -20,7 +20,7 @@ Cada skill de BMAD y OpenSpec pertenece a una **clase**, y la clase decide herra
 |---|---|---|---|
 | decidir | Claude, el más capaz | `bmad-architecture`, `bmad-spec`, `bmad-prd`, propose/archive/sync/update | Lo que se vuelve contrato |
 | redactar | Claude, el mediano | brief, forja, elicitación, PM, UX, épicas, sprint, explore, `bmad-project-context` | Redactar no requiere el modelo más caro |
-| recolectar | OpenCode `recolector` (Kimi K3) | `bmad-deep-recon` | Lectura masiva: deja un digest en `_bmad-output/digests/` |
+| recolectar | OpenCode `recolector` | `bmad-deep-recon` | Lectura masiva: deja un digest en `_bmad-output/digests/` |
 | revisar | OpenCode `revisor-bmad` (DeepSeek V4) | `bmad-review`, `bmad-code-review`, `bmad-walkthrough` | Lo más caro de BMAD, y mejor con otra familia |
 | ejecutar / mecánico | OpenCode `build` / `mecanico` | apply de OpenSpec, `bmad-qa-generate-e2e-tests` | Implementar es volumen |
 | prohibido | ninguna | `bmad-build`, `bmad-build-auto`, `bmad-agent-dev` | Implementan fuera de OpenSpec: rompen "BMAD no ejecuta" |
@@ -44,6 +44,13 @@ Cada skill de BMAD y OpenSpec pertenece a una **clase**, y la clase decide herra
 - **Lo mecánico con scripts** (`docs/LECCIONES.md` §12): `scripts/nuevo.sh <id> --nivel N [--issue "título"] [--worktree]` crea issue, rama y worktree sin gastar tokens.
 - **Worktree solo si trabajas en paralelo.** Si no, una rama en el checkout normal basta.
 - **Lotes:** varios triviales en un PR `chore/lote-<fecha>`.
+- **Economía de la ejecución** (`docs/LECCIONES.md` §20). El costo de un agente es *contexto acumulado × pasos*, no tamaño del diff:
+  - **Changes de ≤ ~12 tareas**; si no, se parten. Tareas en grupos de ≤ 5, cada grupo etiquetado `(build)` o `(@mecanico)`.
+  - **Una sesión de OpenCode por grupo:** `/ejecutar-cambio <id> grupo N`, `/exit` y sesión nueva. Las revisiones van en su propia sesión al final.
+  - **Modelo de `build` según el riesgo** (`harness.json → modelo_por_riesgo`): riesgo bajo o medio, el barato (DeepSeek V4.1 Flash), y si falla 3 veces se escala; riesgo alto (zona roja o plano de control), el fuerte (DeepSeek V4 Pro) desde el inicio. Lo comprueba `/ejecutar-cambio` al empezar cada sesión y se cambia con `/models` (selector; la sesión conserva el modelo con que arrancó).
+  - **Modelo por costo:** `build` para lo que exige diseño o toca seguridad; `@mecanico` (el más barato) para tests, docs, empaquetado y repetición; `@explorador` para buscar. Claude solo decide y juzga. Los modelos se eligen por **precio de lectura de caché** y peticiones por ventana de 5 h, no por precio de entrada (`docs/LECCIONES.md` §21); la asignación vigente está en `docs/harness/RUTAS.md`.
+  - **Leer poco:** `grep` y rangos, no archivos enteros; tests enfocados por tarea y la suite completa al cerrar el grupo; tres fallos seguidos → HANDOFF.md y parar.
+  - **Para cortar una sesión en marcha:** Esc (dos veces si no para), pedir commit de lo marcado y HANDOFF.md, luego `/exit`.
 
 ## 4. Árbol de decisión por pedido
 
@@ -114,7 +121,7 @@ Override consciente: `HARNESS_OVERRIDE=1 scripts/arq` o `scripts/ejec`; queda co
 
 | A mano | Generado |
 |---|---|
-| `AGENTS.md` (reglas del repo) | `docs/harness/RUTAS.md`, `opencode.json`, modelos de los agentes, `.cursor/rules/harness.mdc` (`harness.py sync`) |
+| `AGENTS.md` (reglas del repo) | `docs/harness/RUTAS.md`, `opencode.json`, modelos de los agentes, `.cursor/rules/harness.mdc`, `.mcp.json`, `.cbmignore` (`harness.py sync`) |
 | `harness.json` (datos del harness) | `docs/ESTADO.md` (`harness.py estado`, desde `openspec/` e issues) |
 | `.harness/versiones.json` (versiones fijadas) | `.harness/telemetria.jsonl` (`harness.py telemetria registrar`, al mergear) |
 | | `.harness/revisiones/` (evidencia, la escribe `harness.py revision registrar`) |
@@ -137,7 +144,7 @@ Efímero: `HANDOFF.md`, que se vacía al mergear. Regla: si un dato puede deriva
 Configuración paso a paso: `docs/ESTANDAR-PROYECTO.md`; verificación: `docs/PRUEBA-DE-HUMO.md`.
 
 - Límite de Claude Pro 3 o más veces por semana → baja niveles, mueve más BMAD a recolectar/revisar, o Max 5x.
-- Límite de Go a diario → GLM Coding Plan Lite o Go + Lite.
+- Límite de Go a diario → primero revisa el precio de caché de los modelos de `agentes` (`docs/LECCIONES.md` §21) y el largo de las sesiones; si sigue, Go Plus.
 - Luna se queda corto seguido → ChatGPT Go o Plus.
 - Un proveedor de OmniRoute cambia sus términos → quítalo.
 - Más de unas pocas horas al mes arreglando el harness → simplifícalo.
@@ -149,3 +156,26 @@ Claude Code con `/sandbox` y lectura de secretos bloqueada; OpenCode en `scripts
 ## 15. El harness es vivo
 
 Mejora encontrada → `harness.json`, la regla de routing, las lecciones o `openspec/config.yaml` → `harness.py sync` → súbela al repo base.
+
+## 16. Memoria de código (codebase-memory-mcp)
+
+Un índice del código (grafo de símbolos, llamadas y arquitectura) que Claude Code y los agentes de OpenCode que exploran consultan por MCP en vez de leer archivo por archivo. Viene **encendida por defecto**; `/descubrir` recomienda si dejarla así según la visión del proyecto y deja la decisión en `docs/harness/MAPA.md`.
+
+| Qué | Dónde |
+|---|---|
+| Interruptor | `harness.json → mcp.codebase_memory.habilitado` |
+| Versión y SHA-256 por plataforma | `.harness/versiones.json → binarios.codebase-memory-mcp` |
+| Binario | `.harness/bin/<os>-<arch>/` (ignorado por git) |
+| Índice y configuración del servidor | `~/.cache/ai-harness/cbm/`, **compartido por todos tus repos con harness** y separado de la caché propia de codebase-memory-mcp |
+| Estado del repo (hash de exclusiones, log, lock) | `.harness/cbm/` (ignorado por git) |
+| Adaptadores (generados) | `.mcp.json` (Claude), bloque `mcp` y vetos en `opencode.json` (OpenCode), `.cbmignore` |
+
+**Encender:** `habilitado: true` → `python3 scripts/harness.py sync` → `bash scripts/cbm-instalar.sh` → `bash scripts/cbm-indexar.sh` → reinicia Claude Code y OpenCode.
+**Apagar:** `habilitado: false` → `python3 scripts/harness.py sync` → reinicia Claude Code y OpenCode. Los hooks y scripts quedan inertes. Para liberar disco: `rm -rf .harness/bin .harness/cbm` en el repo, y `~/.cache/ai-harness/cbm` si ningún otro repo la usa.
+**Re-indexar:** lo hacen solos, en segundo plano y sin bloquear git, los hooks `post-merge` y `post-checkout` (tras `pull`/`merge`, al cambiar de rama y en `worktree add`); el log queda en `.harness/cbm/ultimo-indexado.log`. A mano: `bash scripts/cbm-indexar.sh`, necesario tras un `rebase` o `pull --rebase`, o si `build` lanzó `index_repository` mientras un hook indexaba. El servidor nunca indexa por su cuenta (`auto_index` y watcher apagados).
+**Varios proyectos a la vez:** funciona porque la caché es una sola: el servidor admite un solo proceso por usuario y distingue cada repo (y cada worktree) como un proyecto. Todos tus repos deben usar la misma versión fijada.
+**Quién la recibe:** en OpenCode, solo los agentes de `agentes_consulta` (`build`, `explorador`, `recolector`, `contexto-largo` y los revisores). `@mecanico` y los agentes nuevos no la reciben, porque sus 17 herramientas viajan en cada paso y encarecen cada llamada. **Nadie escribe en el índice por MCP**: `index_repository`, `delete_project`, `manage_adr` e `ingest_traces` están vetadas para Claude Code y para todos los agentes (`agentes_escritura` vacío). Solo escriben los scripts del harness, porque el servidor MCP no verifica secretos y una llamada directa podría indexar un `.env`. Si un agente necesita re-indexar, corre `bash scripts/cbm-indexar.sh`. Llenar `agentes_escritura` reabre ese riesgo: hazlo solo sabiendo eso.
+**Contenedor:** no soportado. Dentro de `scripts/ejec-contenedor` el servidor no arranca y OpenCode trabaja sin memoria.
+**Secretos:** `.cbmignore` se genera desde `mcp.codebase_memory.ignorar`, que refleja `secretos`. Antes de cada indexado y al arrancar el servidor, `python3 scripts/harness.py cbm verificar-secretos` comprueba que ningún archivo secreto del repo quedaría indexado; si alguno no queda cubierto, no se indexa y el servidor no arranca. Si cambia `.cbmignore`, se borra del índice el proyecto de ese repo y se rehace en frío. Si añades un patrón a `secretos.rutas`, añade su equivalente a `ignorar`: el selftest falla si no lo haces.
+**Actualizar la versión:** es un cambio del plano de control. Edita `version` y los cuatro `sha256` en `.harness/versiones.json` desde el `checksums.txt` de la release nueva. Nunca uses su `install.sh` ni `curl | bash`. Abre el PR con tu aprobación y corre `bash scripts/cbm-instalar.sh` en cada repo. Si el formato del índice cambió, el primer indexado tarda como uno en frío.
+**Diagnóstico:** `bash scripts/doctor.sh` revisa binario y versión, cobertura de secretos, hooks e índice.

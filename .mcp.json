@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "codebase-memory": {
+      "command": "${CLAUDE_PROJECT_DIR}/scripts/cbm"
+    }
+  }
+}

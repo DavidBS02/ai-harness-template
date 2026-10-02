@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Hook de git: re-indexa la memoria de código en segundo plano tras un merge/pull (D7).
+# requirements:/.githooks/post-merge
+# Nunca falla ni imprime: un hook que sale con codigo distinto de 0 aborta la operacion de git
+# y uno que escribe ensucia la salida. El indexado va desacoplado (--fondo), que ademas
+# respeta el interruptor de harness.json y el lock de cbm-indexar.sh.
+RAIZ="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "$RAIZ" ] && [ -x "$RAIZ/scripts/cbm-indexar.sh" ]; then
+  "$RAIZ/scripts/cbm-indexar.sh" --fondo >/dev/null 2>&1 || true
+fi
+exit 0

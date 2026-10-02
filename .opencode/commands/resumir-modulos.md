@@ -1,7 +1,7 @@
 ---
 description: Resume cada módulo listado en docs/harness/resumenes/_modulos.txt para que Claude Code decida el routing. Solo lectura.
 ---
-Para cada línea de `docs/harness/resumenes/_modulos.txt`, escribe `docs/harness/resumenes/<nombre>.md` (nombre = ruta con / reemplazado por _). Usa @explorador para módulos pequeños y cambia al agente `contexto-largo` (Kimi K3) solo si el módulo supera ~50 archivos.
+Para cada línea de `docs/harness/resumenes/_modulos.txt`, escribe `docs/harness/resumenes/<nombre>.md` (nombre = ruta con / reemplazado por _). Usa @explorador para módulos pequeños y cambia al agente `contexto-largo` solo si el módulo supera ~50 archivos.
 Cada resumen, máximo 40 líneas, con estas secciones:
 - Propósito (2 líneas)
 - Entradas / salidas (APIs, eventos, tablas, archivos)

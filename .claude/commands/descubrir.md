@@ -23,6 +23,15 @@ Fase 0: vas a ENTENDER este proyecto para decidir el routing de copilotos y deja
 
 8. Si el repo es VERDE: pregúntame todo junto, una sola vez: stack, dominio, si habrá datos personales o pagos, cómo probaremos y dónde se despliega. Escribe MAPA.md como "mapa objetivo", las rutas previstas y DELEGACION.md, y deja como siguiente paso la ruta BMAD: `bmad-help` → `bmad-forge-idea` / `bmad-product-brief` → `bmad-spec` → `bmad-architecture` → primer `/cambio`, que sembrará `openspec/config.yaml` (`docs/LECCIONES.md` §5).
 
-9. Aplica todo al harness con los pasos de `/init-harness`.
+9. **¿Memoria de código?** Decide si la memoria de código (codebase-memory-mcp, interruptor `harness.json → mcp.codebase_memory.habilitado`, por defecto encendida) le sirve a ESTE proyecto, según su visión y su objetivo:
+   - **Encender** si se cumple alguna: el repo ya existe o es grande; tiene varios módulos o lenguajes; tendrá vida larga; habrá trabajo en paralelo (worktrees, varios agentes).
+   - **Apagar** si se cumple alguna: es muy pequeño; es solo documentación; su lenguaje principal no está soportado por el indexador.
+   - **Verde (caso C):** encender y revisar en el primer hito.
+   Propón una recomendación con su justificación en 2 líneas. [CONFIRMAR CONMIGO] Luego:
+   - Escribe la decisión, la fecha y la justificación en `docs/harness/MAPA.md` → «Memoria de código».
+   - Si es apagar: `habilitado: false` en `harness.json` y `python3 scripts/harness.py sync`.
+   - Si es verde: crea el issue `gh issue create --label verificacion-diferida --title "Revisar memoria de código en el primer hito"` y anota su número en MAPA.md.
 
-10. Crea la rama `chore/harness-descubrimiento`, haz commit (`chore: descubrimiento y routing del harness`), push y `gh pr create`. Cierra con: resumen del proyecto en 10 líneas, tabla de zonas, caso (A/B/C) y qué queda manual.
+10. Aplica todo al harness con los pasos de `/init-harness`.
+
+11. Crea la rama `chore/harness-descubrimiento`, haz commit (`chore: descubrimiento y routing del harness`), push y `gh pr create`. Cierra con: resumen del proyecto en 10 líneas, tabla de zonas, caso (A/B/C) y qué queda manual.

@@ -1,0 +1,62 @@
+# OpenSpec del propio template (el harness se cambia con el harness).
+# Sembrado desde .harness/openspec-config.base.yaml. Este archivo NO lo copia bootstrap.sh: los proyectos
+# que adoptan el harness reciben la base y /init-harness la fusiona con su contexto.
+schema: spec-driven
+
+context: |
+  Language: spanish
+  All artifacts must be written in spanish.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  ## Producto
+  ai-harness-template: harness de copilotos (Claude Code = arquitecto, OpenCode = ejecutor, revisores de solo lectura)
+  que se copia a otros repos con scripts/bootstrap.sh. Sus "usuarios" son el humano dueño del repo y los agentes.
+
+  ## Stack
+  Python 3.8+ solo con biblioteca estándar (scripts/harness.py = motor único), bash para envoltorios,
+  TypeScript mínimo para el plugin de OpenCode, GitHub Actions, imagen Docker del ejecutor.
+  Versiones de terceros fijadas en .harness/versiones.json (nunca 'latest').
+
+  ## Capas y directorios
+  - Datos: harness.json (fuente única) → `harness.py sync` genera adaptadores (RUTAS.md, opencode.json, agentes).
+  - Motor: scripts/harness.py; envoltorios: scripts/*, .githooks/*, .opencode/plugins/guardia.ts, .github/workflows/*.
+  - Método: .claude/commands/*, .opencode/commands/*, .claude/rules/workflow-routing.md, AGENTS.md.
+  - Docs: docs/ (harness-guide, SEGURIDAD, LECCIONES, DECISIONES).
+
+  ## Reglas de arquitectura
+  - Un motor, un archivo de datos: la lógica vive en harness.py; todo lo demás es envoltorio delgado o generado por sync.
+  - Fail-closed: si un guardia o hook falla, bloquea.
+  - Plano de control (control_plane.rutas en harness.json): ningún agente lo edita sin HARNESS_OVERRIDE=1 del humano; el PR exige aprobación humana.
+  - Secretos (harness.json → secretos): ningún agente ni herramienta los lee, imprime o indexa.
+  - Dependencias externas fijadas por versión y checksum; sin instaladores remotos ni `curl | bash`.
+
+  ## Convenciones
+  Textos y mensajes en español; ids de change en kebab-case inglés; tests: `python3 -m unittest discover -s scripts -p 'test_*.py'`;
+  diagnóstico: `bash scripts/doctor.sh`; adaptadores: `python3 scripts/harness.py sync --check`.
+
+  ## Nunca entra al repo
+  Secretos, tokens, .env, índices locales (.harness/cbm/, .codebase-memory/), binarios descargados (.harness/bin/).
+
+rules:
+  proposal:
+    - Citar las capacidades de openspec/specs/ que crea o modifica y las reglas de arquitectura de este config que gobiernan el change.
+    - Incluir una sección "Fuera de este change" con lo que queda para changes posteriores.
+    - '[harness] Terminar con la sección "## Harness" con estas líneas exactas: "Issue: #<n>" (nivel ≥ 2), "Nivel: 1|2|3", "Riesgo: bajo|medio|alto", "Zonas: <rutas o módulos que toca>", "OpenCode-zona-roja: autorizado" solo si el arquitecto delega zona roja con pasos cerrados (si no, "OpenCode-zona-roja: no").'
+  specs:
+    - Requirements y escenarios en español; SHALL/MUST y encabezados estructurales en inglés.
+    - Todo encabezado bajo `## MODIFIED Requirements` debe existir literal en `openspec/specs/<cap>/spec.md`; un MODIFIED lleva todos los escenarios ya publicados del requisito (docs/LECCIONES.md §1).
+  design:
+    - Toda decisión que dependa de un artefacto externo (release, API, formato de config de otra herramienta) cita la muestra real verificada o la declara Open Question con una tarea temprana que la resuelva (docs/LECCIONES.md §2).
+  tasks:
+    - Cada tarea termina con "verificar con ..." concreto (comando, test u observación).
+    - Marcar "(manual)" las tareas que solo el usuario puede hacer en sus cuentas.
+    - '[harness] Las tareas las marca el ejecutor (OpenCode) al completarlas; si una tarea revela un hueco del spec, el ejecutor lo escribe en HANDOFF.md y se detiene: el arquitecto corre /opsx:update.'
+
+operations:
+  apply:
+    guidance:
+      - Correr el selftest (`python3 -m unittest discover -s scripts -p 'test_*.py'`) antes de marcar una tarea de código como hecha.
+      - '[harness] Nunca editar proposal.md, design.md ni specs/ del change: solo código y tasks.md.'
+  archive:
+    guidance:
+      - Verificar que `npx openspec validate --all` pasa y resumir qué specs de openspec/specs/ cambiaron.

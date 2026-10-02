@@ -1,7 +1,7 @@
 ---
 description: Tareas mecánicas y de volumen - tests, docs, renombres, tipos, migraciones repetitivas.
 mode: subagent
-model: opencode-go/glm-5.3-flash
+model: opencode/mimo-v2.6-flash-free
 permission:
   bash:
     "git push*": deny

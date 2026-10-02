@@ -5,10 +5,12 @@ así que prueba exactamente lo que se instala en los proyectos.
 """
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -34,13 +36,18 @@ class Repo:
         shutil.copytree(BASE / ".githooks", self.dir / ".githooks")
         shutil.copytree(BASE / ".opencode", self.dir / ".opencode")
         shutil.copy(BASE / "opencode.json", self.dir / "opencode.json")
-        shutil.copytree(BASE / ".harness", self.dir / ".harness", ignore=shutil.ignore_patterns("revisiones", "telemetria.jsonl", "entrantes"))
+        shutil.copytree(BASE / ".harness", self.dir / ".harness", ignore=shutil.ignore_patterns("revisiones", "telemetria.jsonl", "entrantes", "bin", "cbm"))
         shutil.copytree(BASE / ".claude", self.dir / ".claude")
         for f in list((self.dir / ".githooks").iterdir()) + list((self.dir / "scripts").iterdir()):
             f.chmod(0o755)
         for c in ("git init -q", "git config user.email t@t", "git config user.name t", "git checkout -q -b main",
                   "git config core.hooksPath .githooks"):
             sh(c, self.dir)
+        # Los hooks de re-indexado (D7) crean .harness/cbm/ al cambiar de rama. Aquí se ignora solo
+        # en el temporal, como el .gitignore del repo real, para que git add -A (commit/rama) no lo
+        # recoja y falsee el cálculo de riesgo o la evidencia. Exclude local: no lo ve ningún test.
+        excluir = self.dir / ".git/info/exclude"
+        excluir.write_text(excluir.read_text() + ".harness/cbm/\n")
         self.escribir("README.md", "x")
         self.escribir("src/app.ts", "x")
         self.escribir("src/auth/login.ts", "x")
@@ -271,6 +278,11 @@ class TestEmpaquetado(unittest.TestCase):
         modos = subprocess.run(["git", "ls-files", "-s", ".githooks", "scripts"], cwd=BASE, capture_output=True, text=True).stdout.splitlines()
         no_ejec = [l.split()[-1] for l in modos if l.split()[0] != "100755" and not l.endswith(("test_harness.py",))]
         self.assertEqual(no_ejec, [], "git debe registrarlos como 100755 o los hooks se ignoran al clonar")
+        ejecutables = {l.split()[-1] for l in modos if l.split()[0] == "100755"}
+        for ruta in ("scripts/cbm", "scripts/cbm-indexar.sh", "scripts/cbm-instalar.sh",
+                     ".githooks/post-merge", ".githooks/post-checkout"):
+            self.assertIn(ruta, ejecutables,
+                          f"{ruta} debe estar en git como 100755 (sin modo ejecutable git lo ignora al clonar)")
 
 
 class TestRutasYSync(unittest.TestCase):
@@ -465,6 +477,7 @@ class TestAutoModificacion(unittest.TestCase):
     def setUp(self):
         self.r = Repo()
         harness._CONFIABLE.clear()
+        os.environ.pop("HARNESS_OVERRIDE", None)  # el ejecutor corre la suite con override activo; el guardia in-process no debe verlo
 
     def tearDown(self):
         self.r.cerrar(); harness._CONFIABLE.clear()
@@ -653,3 +666,752 @@ class TestRoutingYReproducibilidad(unittest.TestCase):
         sh("git add -f .env && git commit -qm leak --no-verify", self.r.dir)
         res = dict((m, n) for n, m in harness.doctor(self.r.dir))
         self.assertTrue(any("secretos versionados" in m and n == "error" for m, n in res.items()))
+
+
+# ==================================================== v0.12: memoria de código (cbm)
+
+# Un archivo de ejemplo por cada regex de secretos.rutas: si harness.json añade una regex y
+# aquí no hay ejemplo, el test falla y obliga a cubrirla.
+MUESTRAS_SECRETOS = {
+    "(^|/)\\.env$": [".env"],
+    "(^|/)\\.env\\.[^/]+$": [".env.local", "cfg/.env.production"],
+    "(^|/)\\.(ssh|aws|kube|gnupg)(/|$)": [".ssh/config", ".aws/credentials", ".kube/config", ".gnupg/gpg.conf"],
+    "(^|/)\\.config/gh(/|$)": [".config/gh/hosts.yml"],
+    "(^|/)\\.docker/config\\.json$": [".docker/config.json"],
+    "(^|/)\\.(npmrc|netrc|pypirc|git-credentials)$": [".npmrc", ".netrc", ".pypirc", ".git-credentials"],
+    "\\.(pem|key|p12|pfx|keystore|jks)$": ["certs/a.pem", "certs/a.key", "certs/a.p12", "certs/a.pfx", "certs/a.keystore", "certs/a.jks"],
+    "(^|/)id_(rsa|dsa|ecdsa|ed25519)$": ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"],
+    "(^|/)(credentials|service-account[^/]*|client_secret[^/]*)\\.json$": ["credentials.json", "service-account-dev.json", "client_secret_ab.json"],
+}
+
+# Binario falso de codebase-memory-mcp: responde la versión fijada, registra SU argv en
+# CBM_FAKE_LOG (una línea JSON por invocación) y contesta list_projects / delete_project.
+BINARIO_FALSO = '''#!/usr/bin/env python3
+import json, os, sys
+
+log = os.environ.get("CBM_FAKE_LOG")
+if log:
+    with open(log, "a") as f:
+        print(json.dumps({"argv": sys.argv[1:]}), file=f)
+raiz = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+version = json.load(open(os.path.join(raiz, ".harness", "versiones.json")))["binarios"]["codebase-memory-mcp"]["version"]
+args = sys.argv[1:]
+if args[:1] == ["--version"]:
+    print("codebase-memory-mcp " + version)
+elif args[:2] == ["config", "set"]:
+    pass
+elif "list_projects" in args:
+    proyectos = [] if os.environ.get("CBM_FAKE_VACIO") else [{"name": os.path.basename(raiz), "root_path": raiz, "branch": "main"}]
+    print(json.dumps({"projects": proyectos, "total": len(proyectos)}))
+elif "delete_project" in args:
+    print(json.dumps({"project": json.loads(args[-1])["project"], "status": "deleted"}))
+'''
+
+# Misma variante, pero duerme dentro de index_repository (CBM_FAKE_DUERME segundos, 8 por
+# defecto): deja el indexado EN VUELO en primer plano para poder observarlo y disparar un
+# segundo proceso mientras corre.
+BINARIO_FALSO_LENTO = BINARIO_FALSO.replace(
+    "args = sys.argv[1:]",
+    'args = sys.argv[1:]\n'
+    'if "index_repository" in args:\n'
+    '    import time\n'
+    '    time.sleep(float(os.environ.get("CBM_FAKE_DUERME", "8")))',
+    1)
+
+
+class TestMemoriaDeCodigo(unittest.TestCase):
+    """Tareas 9.1–9.3: adaptadores de sync, vetas por rol (Claude/OpenCode) y secretos + invalidación.
+
+    Todo corre en el repo temporal; el índice usa un binario falso y XDG_CACHE_HOME apunta a un
+    temporal, así que la caché real del usuario jamás se toca."""
+
+    def setUp(self):
+        self.r = Repo()
+        harness._CONFIABLE.clear()
+        os.environ.pop("HARNESS_OVERRIDE", None)
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        self.r.cerrar()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        harness._CONFIABLE.clear()
+
+    # ------------------------------------------------------------------ utilidades
+    def cfg(self):
+        return json.loads((self.r.dir / "harness.json").read_text())
+
+    def escribir_cfg(self, cfg):
+        (self.r.dir / "harness.json").write_text(json.dumps(cfg))
+
+    def mcp_cfg(self):
+        return self.cfg()["mcp"]["codebase_memory"]
+
+    def opencode(self):
+        return json.loads((self.r.dir / "opencode.json").read_text())
+
+    def interruptor(self, estado):
+        c = self.cfg()
+        c["mcp"]["codebase_memory"]["habilitado"] = estado
+        self.escribir_cfg(c)
+
+    def cli(self, *args, env=None):
+        return sh(["python3", "scripts/harness.py", *args], self.r.dir, env)
+
+    def quitar_patron(self, patron):
+        p = self.r.dir / ".cbmignore"
+        p.write_text("\n".join(l for l in p.read_text().splitlines() if l.strip() != patron) + "\n")
+
+    def nombrados(self, res):
+        """Archivos de la lista '⛔ … quedarían indexados' (una línea con sangría)."""
+        return [l.strip() for l in res.stderr.splitlines() if l.startswith("  ")]
+
+    def instalar_binario_falso(self):
+        arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine().lower()]
+        p = self.r.dir / f".harness/bin/{platform.system().lower()}-{arch}/codebase-memory-mcp"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(BINARIO_FALSO)
+        p.chmod(0o755)
+        return p
+
+    def env_indice(self, extra=None):
+        return {"XDG_CACHE_HOME": str(self.tmp / "cache"), "CBM_FAKE_LOG": str(self.tmp / "log.jsonl"), **(extra or {})}
+
+    def llamadas(self):
+        log = self.tmp / "log.jsonl"
+        return [json.loads(l) for l in log.read_text().splitlines()] if log.exists() else []
+
+    def llamadas_a(self, herramienta):
+        return [l for l in self.llamadas() if herramienta in l["argv"]]
+
+    # ------------------------------------------------------------------------- 9.1
+    def test_9_1_encendido_genera_mcp_json_cbmignore_y_claves_de_opencode(self):
+        harness.sync(self.r.dir)
+        mcp = json.loads((self.r.dir / ".mcp.json").read_text())
+        self.assertEqual(list(mcp), ["mcpServers"], ".mcp.json solo lleva mcpServers")
+        self.assertEqual(list(mcp["mcpServers"]), ["codebase-memory"])
+        self.assertEqual(mcp["mcpServers"]["codebase-memory"], {"command": "${CLAUDE_PROJECT_DIR}/scripts/cbm"})
+        lineas = (self.r.dir / ".cbmignore").read_text().splitlines()
+        self.assertIn("GENERADO", lineas[0], "cabecera GENERADO")
+        self.assertEqual(lineas[1:], self.mcp_cfg()["ignorar"], ".cbmignore refleja ignorar de harness.json")
+        oj = self.opencode()
+        self.assertIs(oj["tools"]["codebase-memory_*"], False, "veto global por patrón")
+        for a in self.mcp_cfg()["agentes_consulta"]:
+            self.assertIs(oj["agent"][a]["tools"]["codebase-memory_*"], True, a)
+        mcp = self.mcp_cfg()
+        self.assertEqual(mcp["agentes_escritura"], [], "nadie indexa por MCP: la lista vacía es el contrato")
+        prefijo = f"{mcp['servidor']}_"
+        for a in mcp["agentes_consulta"]:
+            for w in mcp["herramientas_escritura"]:
+                self.assertIs(oj["agent"][a]["tools"][f"{prefijo}{w}"], False,
+                              f"{a} solo consulta: {w} vetada")
+
+    def test_9_1_apagado_retira_mcp_json_cbmignore_y_claves(self):
+        harness.sync(self.r.dir)
+        self.assertTrue((self.r.dir / ".mcp.json").exists())
+        self.interruptor(False)
+        harness.sync(self.r.dir)
+        self.assertFalse((self.r.dir / ".cbmignore").exists(), ".cbmignore se retira")
+        self.assertFalse((self.r.dir / ".mcp.json").exists(), "sin servidores .mcp.json se borra")
+        oj = self.opencode()
+        self.assertNotIn("mcp", oj)
+        self.assertNotIn("tools", oj, "solo había claves de codebase-memory")
+        agentes = oj.get("agent") or {}
+        for a, ag in agentes.items():
+            self.assertEqual([k for k in ag.get("tools", {}) if k.startswith("codebase-memory")], [], a)
+        self.assertNotIn("build", agentes, "build solo tenía claves de codebase-memory: se limpia el dict vacío")
+
+    def test_9_1_conserva_otros_servidores_y_claves_ajenas(self):
+        (self.r.dir / ".mcp.json").write_text(json.dumps({"mcpServers": {"otro": {"command": "x"}}}))
+        oj = self.opencode()
+        oj["mcp"]["otro"] = {"type": "local", "command": ["echo"]}
+        oj["tools"]["webfetch"] = True
+        oj["agent"]["explorador"]["tools"]["webfetch"] = True
+        oj["agent"]["mecanico"] = {"tools": {"webfetch": True}}
+        (self.r.dir / "opencode.json").write_text(json.dumps(oj))
+        harness.sync(self.r.dir)
+        self.assertEqual(set(json.loads((self.r.dir / ".mcp.json").read_text())["mcpServers"]), {"otro", "codebase-memory"})
+        oj = self.opencode()
+        self.assertIs(oj["tools"]["webfetch"], True)
+        self.assertIs(oj["agent"]["explorador"]["tools"]["webfetch"], True)
+        # apagado: retira lo suyo y lo ajeno sigue intacto
+        self.interruptor(False)
+        harness.sync(self.r.dir)
+        self.assertEqual(set(json.loads((self.r.dir / ".mcp.json").read_text())["mcpServers"]), {"otro"}, "el archivo ajeno no se borra")
+        self.assertFalse((self.r.dir / ".cbmignore").exists())
+        oj = self.opencode()
+        self.assertEqual(set(oj["mcp"]), {"otro"})
+        self.assertIs(oj["tools"]["webfetch"], True)
+        self.assertIs(oj["agent"]["explorador"]["tools"]["webfetch"], True)
+        for bloque in [oj["tools"]] + [a["tools"] for a in oj["agent"].values()]:
+            self.assertEqual([k for k in bloque if k.startswith("codebase-memory")], [], "claves propias retiradas")
+
+    def test_9_1_sync_check_detecta_la_deriva(self):
+        harness.sync(self.r.dir)
+        self.assertEqual(harness.sync(self.r.dir, check=True), [])
+        (self.r.dir / ".mcp.json").unlink()
+        self.assertIn(".mcp.json", harness.sync(self.r.dir, check=True))
+        harness.sync(self.r.dir)
+        (self.r.dir / ".cbmignore").write_text("# editado a mano\n")
+        self.assertIn(".cbmignore", harness.sync(self.r.dir, check=True))
+        harness.sync(self.r.dir)
+        oj = self.opencode(); del oj["tools"]["codebase-memory_*"]
+        (self.r.dir / "opencode.json").write_text(json.dumps(oj))
+        self.assertIn("opencode.json", harness.sync(self.r.dir, check=True))
+        harness.sync(self.r.dir)
+        res = self.cli("sync", "--check")
+        self.assertEqual(res.returncode, 0, res.stdout)
+        (self.r.dir / ".cbmignore").unlink()
+        res = self.cli("sync", "--check")
+        self.assertEqual(res.returncode, 1, res.stdout)
+        self.assertIn(".cbmignore", res.stdout)
+
+    def test_9_1_sync_cli_config_incoherente_sale_1_y_advertencia(self):
+        c = self.cfg()
+        c["mcp"]["codebase_memory"]["agentes_escritura"] = ["mecanico"]  # no está en agentes_consulta
+        self.escribir_cfg(c)
+        res = self.cli("sync")
+        self.assertEqual(res.returncode, 1)
+        self.assertTrue(res.stderr.startswith("⛔ harness.json no es coherente"), res.stderr)
+
+    # ------------------------------------------------------------------------- 9.2
+    def test_9_2_claude_veta_las_herramientas_de_escritura_sin_comodines(self):
+        mcp = self.mcp_cfg()
+        deny = json.loads((self.r.dir / ".claude/settings.json").read_text())["permissions"]["deny"]
+        esperado = sorted(f"mcp__{mcp['servidor']}__{w}" for w in mcp["herramientas_escritura"])
+        self.assertEqual(sorted(e for e in deny if e.startswith("mcp__")), esperado)
+        for e in deny:
+            if e.startswith("mcp__"):
+                self.assertNotIn("{", e, "literal, sin llaves")
+                self.assertNotIn("*", e, "literal, sin comodines")
+                self.assertNotIn("<", e, "literal, sin marcadores")
+
+    def test_9_2_opencode_veta_global_y_abre_solo_a_agentes_escritura(self):
+        oj = self.opencode()
+        oj.setdefault("agent", {})["mecanico"] = {"tools": {"webfetch": True}}  # no está en agentes_consulta
+        (self.r.dir / "opencode.json").write_text(json.dumps(oj))
+        harness.sync(self.r.dir)
+        mcp, oj = self.mcp_cfg(), self.opencode()
+        pref = f"{mcp['servidor']}_"
+        vetadas = [f"{pref}{w}" for w in mcp["herramientas_escritura"]]
+        self.assertIs(oj["tools"][f"{pref}*"], False, "vetado globalmente")
+        self.assertEqual([k for k in oj["tools"] if k in vetadas], [], "las herramientas de escritura no viajan en el bloque global")
+        for a in mcp["agentes_consulta"]:
+            t = oj["agent"][a]["tools"]
+            self.assertIs(t[f"{pref}*"], True, a)
+            for k in vetadas:
+                if a in mcp["agentes_escritura"]:
+                    self.assertNotIn(k, t, f"{a} escribe: las herramientas quedan abiertas por el patrón")
+                else:
+                    self.assertIs(t[k], False, f"{a} solo consulta: {k} vetada")
+        for a, ag in oj["agent"].items():
+            if a not in mcp["agentes_consulta"]:
+                self.assertEqual([k for k in ag.get("tools", {}) if k.startswith(pref)], [], f"{a} no recibe claves del servidor")
+
+    def test_9_2_con_agentes_escritura_abre_solo_a_esos(self):
+        cfg = self.cfg()
+        cfg["mcp"]["codebase_memory"]["agentes_escritura"] = ["build"]
+        self.escribir_cfg(cfg)
+        harness.sync(self.r.dir)
+        mcp, oj = self.mcp_cfg(), self.opencode()
+        pref = f"{mcp['servidor']}_"
+        vetadas = [f"{pref}{w}" for w in mcp["herramientas_escritura"]]
+        self.assertIn("build", mcp["agentes_consulta"], "el que escribe también consulta")
+        t = oj["agent"]["build"]["tools"]
+        self.assertIs(t[f"{pref}*"], True, "build escribe: servidor abierto por el patrón")
+        for k in vetadas:
+            self.assertNotIn(k, t, f"build escribe: {k} queda abierta por el patrón, no como clave vetada")
+        t = oj["agent"]["explorador"]["tools"]
+        self.assertIs(t[f"{pref}*"], True, "explorador solo consulta: servidor abierto")
+        for k in vetadas:
+            self.assertIs(t[k], False, f"explorador solo consulta: {k} vetada")
+        cfg["mcp"]["codebase_memory"]["agentes_escritura"] = ["mecanico"]
+        self.escribir_cfg(cfg)
+        with self.assertRaises(harness.ConfigError):
+            harness.sync(self.r.dir)
+
+    # ------------------------------------------------------------------------- 9.3
+    def test_9_3_verificar_secretos_pasa_con_un_ejemplo_por_regex(self):
+        harness.sync(self.r.dir)
+        cfg = harness.cargar(self.r.dir)
+        self.assertEqual(set(MUESTRAS_SECRETOS), set(cfg["secretos"]["rutas"]), "cada regex de secretos.rutas tiene ejemplo")
+        for rutas in MUESTRAS_SECRETOS.values():
+            for ruta in rutas:
+                self.r.escribir(ruta, "x")
+        encontrados = {os.path.relpath(f, self.r.dir) for f in harness.listar_secretos(self.r.dir, cfg)}
+        for regex, rutas in MUESTRAS_SECRETOS.items():
+            for ruta in rutas:
+                self.assertIn(ruta, encontrados, f"{ruta} no lo detecta {regex}")
+        res = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_9_3_patron_quitado_de_cbmignore_falla_nombrando_el_archivo(self):
+        harness.sync(self.r.dir)
+        for rutas in MUESTRAS_SECRETOS.values():
+            for ruta in rutas:
+                self.r.escribir(ruta, "x")
+        self.quitar_patron(".env")  # control negativo con .env, no con *.pem (el indexador no rastrea .pem)
+        res = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(res.returncode, 1)
+        self.assertEqual(self.nombrados(res), [".env"], res.stderr)
+
+    def test_9_3_gitignore_anidado_que_reincluye_un_secreto_falla(self):
+        harness.sync(self.r.dir)
+        self.r.escribir(".env", "x")            # fuera: lo excluye .cbmignore
+        self.r.escribir("sub/.env", "x")        # vuelve a entrar por el ! del .gitignore anidado
+        self.r.escribir("sub/.gitignore", "!.env\n")
+        res = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(res.returncode, 1)
+        self.assertEqual(self.nombrados(res), ["sub/.env"], res.stderr)
+
+    def test_9_3_verificar_secretos_mira_el_repo_indicado_no_solo_la_raiz(self):
+        """Revisión 2 (IMPORTANTE): el índice es COMPARTIDO y el servidor separa los proyectos
+        por ruta, así que indexar OTRO repo también tiene que pasar el gate. Antes solo se
+        comprobaba la raíz del harness al arrancar el servidor, y un index_repository dirigido a
+        otro repo se indexaba sin verificar nada."""
+        harness.sync(self.r.dir)
+        # un repo ajeno con su .cbmignore en regla: el gate pasa
+        otro = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, otro, True)
+        (otro / ".cbmignore").write_text((self.r.dir / ".cbmignore").read_text())
+        res = self.cli("cbm", "verificar-secretos", str(otro))
+        self.assertEqual(res.returncode, 0, f"un repo ajeno bien excluido pasa: {res.stderr}")
+        # el mismo repo con un secreto que su .cbmignore ya no cubre: el gate lo nombra
+        (otro / ".cbmignore").write_text("# vacío a propósito\n")
+        (otro / ".env").write_text("x")
+        res = self.cli("cbm", "verificar-secretos", str(otro))
+        self.assertEqual(res.returncode, 1, "un secreto sin excluir en el repo indicado detiene el indexado")
+        self.assertIn(".env", res.stderr, f"y lo nombra: {res.stderr}")
+
+    def test_9_3_excludes_global_del_usuario_no_cambia_el_resultado(self):
+        harness.sync(self.r.dir)
+        self.r.escribir(".env", "x")
+        self.quitar_patron(".env")
+        sin_excludes = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(sin_excludes.returncode, 1)
+        self.assertEqual(self.nombrados(sin_excludes), [".env"])
+        # el excludes del usuario (config LOCAL del repo temporal) sí lo cubriría…
+        excludes = self.tmp / "excludes-usuario"
+        excludes.write_text(".env\n")
+        sh(["git", "config", "core.excludesFile", str(excludes)], self.r.dir)
+        self.assertEqual(sh(["git", "check-ignore", "--no-index", "-q", ".env"], self.r.dir).returncode, 0,
+                         "el excludes del usuario sí cubre .env")
+        # …pero la verificación no lo tiene en cuenta: mismo fallo nombrando el archivo
+        con_excludes = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(con_excludes.returncode, 1)
+        self.assertEqual(self.nombrados(con_excludes), [".env"], con_excludes.stderr)
+
+    def test_9_3_env_example_no_cuenta_como_secreto(self):
+        harness.sync(self.r.dir)
+        for ruta in (".env.example", ".env.sample", "docs/.env.template"):
+            self.r.escribir(ruta, "X=")
+        cfg = harness.cargar(self.r.dir)
+        encontrados = [os.path.relpath(f, self.r.dir) for f in harness.listar_secretos(self.r.dir, cfg)]
+        self.assertEqual([e for e in encontrados if "example" in e or "sample" in e or "template" in e], [])
+        res = self.cli("cbm", "verificar-secretos")
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_9_3_invalidar_sin_cambios_no_llama_a_delete_project(self):
+        harness.sync(self.r.dir)
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        self.assertEqual(self.cli("cbm", "marcar-indexado", env=env).returncode, 0)
+        res = self.cli("cbm", "invalidar-cache", env=env)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(res.stdout.strip(), "índice al día (las exclusiones no cambiaron)")
+        self.assertEqual(self.llamadas_a("delete_project"), [], "sin cambios no se borra nada")
+
+    def test_9_3_invalidar_con_cbmignore_cambiado_borra_el_proyecto_del_repo(self):
+        harness.sync(self.r.dir)
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        self.assertEqual(self.cli("cbm", "marcar-indexado", env=env).returncode, 0)
+        (self.r.dir / ".cbmignore").write_text((self.r.dir / ".cbmignore").read_text() + "nuevo-patron\n")
+        res = self.cli("cbm", "invalidar-cache", env=env)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        nombre = Path(os.path.realpath(self.r.dir)).name
+        self.assertEqual(res.stdout.strip(), f"índice del proyecto {nombre} borrado: se re-indexa en frío")
+        borrados = self.llamadas_a("delete_project")
+        self.assertEqual(len(borrados), 1, self.llamadas())
+        argv = borrados[0]["argv"]
+        self.assertIn("--quiet", argv)
+        self.assertEqual(json.loads(argv[-1]), {"project": nombre}, "borra el proyecto de ESTE repo")
+
+    def test_9_3_invalidar_repo_ausente_en_el_indice_no_llama_a_delete_project(self):
+        harness.sync(self.r.dir)
+        self.instalar_binario_falso()
+        env = self.env_indice({"CBM_FAKE_VACIO": "1"})
+        res = self.cli("cbm", "invalidar-cache", env=env)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(res.stdout.strip(), "este repo no estaba en el índice: se indexa en frío")
+        self.assertEqual(self.llamadas_a("delete_project"), [], "nada que borrar")
+
+    # --------------------------------------- regresión de las revisiones 1 y 2 (grupo 10,11)
+    def test_9_1_un_agente_fuera_de_agentes_consulta_no_conserva_ninguna_clave_cbm(self):
+        """Revisión 2: un agente que salía de agentes_consulta seguía con sus claves
+        `codebase-memory_*` en opencode.json; el requisito pide cero herramientas del servidor
+        para quien no está en la lista (solo se le dejan sus claves ajenas)."""
+        d = {"tools": {"webfetch": True},
+             "agent": {"agente-retirado": {"tools": {"codebase-memory_*": True,
+                                                     "codebase-memory_index_repository": True,
+                                                     "otra_clave": True}}}}
+        harness.claves_cbm_opencode(d, self.cfg())
+        t = d["agent"]["agente-retirado"]["tools"]
+        self.assertNotIn("codebase-memory_*", t,
+                         "el agente que dejó de estar en agentes_consulta no conserva el comodín "
+                         "del servidor: recibiría todas sus herramientas")
+        self.assertNotIn("codebase-memory_index_repository", t,
+                         "ni ninguna herramienta suelta del servidor")
+        self.assertEqual(list(t), ["otra_clave"], "las claves ajenas al servidor se conservan")
+        self.assertIs(d["tools"]["webfetch"], True, "las claves globales ajenas no se tocan")
+        for a in self.cfg()["mcp"]["codebase_memory"]["agentes_consulta"]:
+            self.assertIs(d["agent"][a]["tools"]["codebase-memory_*"], True, f"{a} conserva su clave")
+
+    def test_doctor_version_del_binario_distinta_de_la_fijada_es_error(self):
+        """Revisión 1: era un aviso; el spec pide ERROR, porque el envoltorio no arranca con
+        otra versión que la fijada."""
+        harness.sync(self.r.dir)
+        # binario instalado que responde con OTRA versión de la fijada en .harness/versiones.json
+        arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine().lower()]
+        p = self.r.dir / f".harness/bin/{platform.system().lower()}-{arch}/codebase-memory-mcp"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('#!/usr/bin/env python3\nprint("codebase-memory-mcp 0.0.0")\n')
+        p.chmod(0o755)
+        mensajes = [(n, m) for n, m in harness.doctor(self.r.dir) if m.startswith("codebase-memory-mcp")]
+        self.assertEqual(len(mensajes), 1, f"una sola verificación del binario: {mensajes}")
+        nivel, msg = mensajes[0]
+        self.assertEqual(nivel, "error",
+                         f"versión distinta de la fijada es ERROR, no aviso, porque el envoltorio "
+                         f"no arrancará con otra: {msg}")
+        self.assertIn("instalada 0.0.0", msg)
+        self.assertIn("fijada 0.11.0", msg)
+
+    def test_doctor_con_la_memoria_apagada_una_sola_linea_ok(self):
+        """10.1: apagada, doctor dice solo `✓ memoria de código apagada` y no inspecciona el binario."""
+        harness.sync(self.r.dir)
+        self.interruptor(False)
+        res = harness.doctor(self.r.dir)
+        self.assertEqual([(n, m) for n, m in res if "memoria de código" in m],
+                         [("ok", "memoria de código apagada")],
+                         "una sola línea, en nivel ok")
+        self.assertEqual([m for n, m in res if "codebase-memory" in m], [],
+                         "sin memoria no se verifica el binario ni el índice")
+
+
+# ==================================================== 9.7: hooks de re-indexado (D7)
+
+
+class TestHooksReindexado(unittest.TestCase):
+    """Tarea 9.7: `.githooks/post-checkout` y `.githooks/post-merge` sobre el binario falso.
+
+    Mismo aislamiento que TestMemoriaDeCodigo: los hooks corren con cwd en el repo temporal,
+    así que `git rev-parse --show-toplevel` y el `estado_dir` relativo (`harness.json`) caen
+    dentro de él, y la caché compartida se apunta con XDG_CACHE_HOME a un temporal. Ni el repo
+    real ni `~/.cache/ai-harness/cbm` se tocan. Todo lo que lanzan los hooks va además a
+    `.harness/cbm/ultimo-indexado.log` y al binario falso, nunca a la consola de git."""
+
+    def setUp(self):
+        self.r = Repo()
+        harness._CONFIABLE.clear()
+        os.environ.pop("HARNESS_OVERRIDE", None)
+        self.tmp = Path(tempfile.mkdtemp())
+        harness.sync(self.r.dir)  # .cbmignore: sin él el indexado en segundo plano falla
+
+    def tearDown(self):
+        self.r.cerrar()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        harness._CONFIABLE.clear()
+
+    # ------------------------------------------------------------------ utilidades
+    def estado(self):
+        return self.r.dir / ".harness/cbm"
+
+    def instalar_binario_falso(self):
+        arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine().lower()]
+        p = self.r.dir / f".harness/bin/{platform.system().lower()}-{arch}/codebase-memory-mcp"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(BINARIO_FALSO)
+        p.chmod(0o755)
+        return p
+
+    def env_indice(self, extra=None):
+        return {"XDG_CACHE_HOME": str(self.tmp / "cache"), "CBM_FAKE_LOG": str(self.tmp / "log.jsonl"), **(extra or {})}
+
+    def env_proceso(self, extra=None):
+        """Entorno COMPLETO para lanzar cbm-indexar.sh con subprocess (mismo aislamiento que sh():
+        XDG_CACHE_HOME y el log del binario falso van a temporales, y las variables de rol del
+        humano no se heredan)."""
+        e = {**os.environ, **self.env_indice(extra)}
+        for k in ("HARNESS_ROL", "HARNESS_OVERRIDE", "HARNESS_BRANCH"):
+            e.pop(k, None)
+        return e
+
+    def instalar_binario_lento(self):
+        """El binario falso, pero index_repository duerme para que el indexado dure en el tiempo."""
+        p = self.instalar_binario_falso()
+        p.write_text(BINARIO_FALSO_LENTO)
+        p.chmod(0o755)
+        return p
+
+    def llamadas(self):
+        log = self.tmp / "log.jsonl"
+        if not log.exists():
+            return []
+        r = []
+        for l in log.read_text().splitlines():
+            try:
+                r.append(json.loads(l))
+            except json.JSONDecodeError:
+                pass  # línea a medio escribir del worker en segundo plano: se lee en la próxima vuelta
+        return r
+
+    def llamadas_a(self, herramienta):
+        return [l for l in self.llamadas() if herramienta in l["argv"]]
+
+    def indexados(self):
+        return len(self.llamadas_a("index_repository"))
+
+    def log_indexado(self):
+        p = self.estado() / "ultimo-indexado.log"
+        return p.read_text(errors="replace") if p.exists() else "(sin log)"
+
+    def interruptor(self, estado):
+        c = json.loads((self.r.dir / "harness.json").read_text())
+        c["mcp"]["codebase_memory"]["habilitado"] = estado
+        (self.r.dir / "harness.json").write_text(json.dumps(c))
+        harness.sync(self.r.dir)
+
+    def disparar(self, hook, *args, env=None):
+        """Dispara un hook de git a mano (argumentos iguales a los que pasa git)."""
+        return sh(["bash", f".githooks/{hook}", *args], self.r.dir, env)
+
+    def esperar(self, cond, seg=30):
+        """cond() con límite de tiempo: el indexado corre fuera del proceso del test."""
+        fin = time.time() + seg
+        while time.time() < fin:
+            if cond():
+                return True
+            time.sleep(0.05)
+        return bool(cond())
+
+    def matar(self, p):
+        p.kill()
+        p.wait()
+
+    # ------------------------------------------------------------------------- 9.7
+    def test_9_7_post_checkout_solo_lanza_con_cambio_de_rama(self):
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        # $3 = 0 (git checkout -- <archivo>): el código del repo no cambió, no hay nada que indexar
+        p = self.disparar("post-checkout", "prev", "nxt", "0", env=env)
+        self.assertEqual(p.returncode, 0, "el hook termina con 0")
+        self.assertEqual(p.stdout + p.stderr, "", "el hook no imprime nada")
+        self.assertFalse(self.estado().exists(), "sin cambio de rama no se invoca al indexador")
+        self.assertEqual(self.llamadas(), [], "el binario falso no se invoca")
+        # $3 = 1 (cambio de rama): lanza el indexado en segundo plano con el binario falso
+        p = self.disparar("post-checkout", "prev", "nxt", "1", env=env)
+        self.assertEqual(p.returncode, 0, "el hook vuelve de inmediato con 0")
+        self.assertEqual(p.stdout + p.stderr, "", "sin salida: no interrumpe la operación de git")
+        self.assertTrue(self.esperar(lambda: self.indexados() >= 1),
+                        f"el indexado en segundo plano no llegó a index_repository; log:\n{self.log_indexado()}")
+        self.assertTrue(self.esperar(lambda: not (self.estado() / "indexando.lock").exists()),
+                        f"el indexado en segundo plano no terminó; log:\n{self.log_indexado()}")
+        self.assertTrue((self.estado() / "ultimo-indexado.log").exists(), "el log del indexado en segundo plano")
+
+    def test_9_7_post_checkout_no_indexa_durante_un_rebase(self):
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        for marca in ("rebase-merge", "rebase-apply"):
+            (self.r.dir / ".git" / marca).mkdir(parents=True, exist_ok=True)
+            p = self.disparar("post-checkout", "prev", "nxt", "1", env=env)
+            self.assertEqual(p.returncode, 0)
+            self.assertEqual(p.stdout + p.stderr, "")
+            self.assertFalse(self.estado().exists(), f"con .git/{marca} en curso no se indexa")
+            self.assertEqual(self.llamadas(), [], f"con .git/{marca} el binario falso no se invoca")
+            shutil.rmtree(self.r.dir / ".git" / marca, ignore_errors=True)
+
+    def test_9_7_dos_disparos_con_el_lock_tomado_lanzan_un_solo_indexado(self):
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        lock = self.estado() / "indexando.lock"
+        # primer disparo: lanza y termina; al salir el worker suelta el lock (trap EXIT)
+        p = self.disparar("post-checkout", "prev", "nxt", "1", env=env)
+        self.assertEqual(p.returncode, 0)
+        self.assertTrue(self.esperar(lambda: self.indexados() >= 1),
+                        f"el primer disparo no indexa; log:\n{self.log_indexado()}")
+        self.assertTrue(self.esperar(lambda: not lock.exists()),
+                        f"el primer indexado no termina; log:\n{self.log_indexado()}")
+        # hay un indexado en curso: mismo lock mkdir+PID con un PID vivo, que es lo que mira el script
+        durmiente = subprocess.Popen(["sleep", "120"])
+        self.addCleanup(self.matar, durmiente)
+        lock.mkdir(parents=True, exist_ok=True)
+        (lock / "pid").write_text(str(durmiente.pid))
+        # segundo disparo, seguido del primero y con el lock tomado: no lanza otro indexador.
+        # cbm-indexar.sh escribe el PID del worker ANTES de volver, y el hook espera a que el
+        # script vuelva: si el segundo disparo hubiera lanzado, el PID ya estaría cambiado aquí.
+        p = self.disparar("post-checkout", "prev", "nxt", "1", env=env)
+        self.assertEqual(p.returncode, 0)
+        self.assertEqual(p.stdout + p.stderr, "")
+        self.assertEqual((lock / "pid").read_text(), str(durmiente.pid),
+                         "el segundo disparo no arranca otro indexador: el lock sigue intacto")
+        self.assertEqual(self.indexados(), 1, "solo uno de los dos disparos llegó a indexar")
+
+    def test_9_7_los_dos_hooks_salen_cero_aunque_el_indexador_falle(self):
+        marca = self.tmp / "indexador-llamado.txt"
+        indexador = self.r.dir / "scripts/cbm-indexar.sh"
+        for hook, args in (("post-merge", ()), ("post-checkout", ("prev", "nxt", "1"))):
+            # indexador roto: registra SU invocación y revienta
+            indexador.write_text(f'#!/usr/bin/env bash\necho "$*" >> "{marca}"\nexit 7\n')
+            indexador.chmod(0o755)
+            p = self.disparar(hook, *args)
+            self.assertEqual(p.returncode, 0, f"{hook}: un fallo del indexador no puede fallar git")
+            self.assertEqual(p.stdout + p.stderr, "", f"{hook}: sin salida ni siquiera ante el fallo")
+        self.assertEqual(marca.read_text().splitlines(), ["--fondo", "--fondo"],
+                         "los dos hooks invocan a cbm-indexar.sh --fondo y su fallo no les llega")
+
+    def test_9_7_con_la_memoria_apagada_no_lanza_nada_ni_crea_el_log(self):
+        self.instalar_binario_falso()
+        self.interruptor(False)
+        env = self.env_indice()
+        for hook, args in (("post-merge", ()), ("post-checkout", ("prev", "nxt", "1"))):
+            p = self.disparar(hook, *args, env=env)
+            self.assertEqual(p.returncode, 0, f"{hook}: con la memoria apagada termina con 0")
+            self.assertEqual(p.stdout + p.stderr, "")
+        self.assertEqual(self.llamadas(), [], "el binario falso no se invoca")
+        self.assertFalse((self.estado() / "ultimo-indexado.log").exists(), "no se crea ultimo-indexado.log")
+        self.assertFalse(self.estado().exists(), "cbm-indexar.sh sale sin tocar el estado local del repo")
+
+    # --------------------------------------- regresión de las revisiones 1 y 2 (grupo 10,11)
+    def test_lock_en_primer_plano_escribe_pid_y_el_fondo_no_arranca_un_segundo_indexado(self):
+        """Revisiones 1 y 2: `tomar_lock` creaba el lock con `mkdir` pero sin escribir `pid` en
+        primer plano, de modo que otro proceso lo veía huérfano y se lo robaba → DOS
+        `index_repository` a la vez. Aquí el primer plano DURA (el binario falso duerme dentro
+        de index_repository) y, mientras corre, se lanza un `--fondo`: tiene que respetarlo."""
+        self.instalar_binario_lento()
+        env = self.env_indice()
+        lock = self.estado() / "indexando.lock"
+        # primer plano con subprocess.Popen: el script se queda indexando y no vuelve solo
+        p = subprocess.Popen(["bash", "scripts/cbm-indexar.sh"], cwd=self.r.dir,
+                             env=self.env_proceso(),
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        self.addCleanup(self.matar, p)
+        self.assertTrue(self.esperar(lambda: self.indexados() >= 1, seg=90),
+                        f"el indexado en primer plano no llegó a index_repository; log:\n{self.log_indexado()}")
+        self.assertTrue(lock.exists(), "mientras el primer plano indexa, su lock sigue ahí")
+        pid = (lock / "pid").read_text().strip() if (lock / "pid").exists() else ""
+        self.assertTrue(pid.isdigit(),
+                        "el lock en primer plano lleva escrito SU PID: sin PID otro proceso lo "
+                        "considera huérfano, se lo roba y salen dos indexados a la vez")
+        # segundo disparo, en segundo plano, mientras el primero sigue dentro de index_repository
+        p2 = sh(["bash", "scripts/cbm-indexar.sh", "--fondo"], self.r.dir, env)
+        self.assertEqual(p2.returncode, 0, p2.stderr)
+        self.assertEqual((lock / "pid").read_text().strip(), pid,
+                         "el --fondo ve un lock con PID vivo y no se lo roba: el PID no cambia")
+        self.assertTrue(self.esperar(lambda: p.poll() is not None, seg=60),
+                        "el indexado en primer plano termina (el binario falso solo duerme)")
+        salida = p.stdout.read()
+        p.stdout.close()
+        self.assertEqual(p.returncode, 0, salida)
+        self.assertTrue(self.esperar(lambda: not lock.exists(), seg=30),
+                        f"al salir, el primer plano suelta SU lock; log:\n{self.log_indexado()}\n{salida}")
+        self.assertEqual(self.indexados(), 1,
+                         "solo UNA llamada a index_repository: el --fondo respeta el lock del "
+                         "indexado que ya corre en primer plano")
+
+
+# ============================================== regresión del lock portable (revisiones 1 y 2)
+
+
+class TestLockDelIndexador(unittest.TestCase):
+    """Regresión de las revisiones 1 y 2 sobre `scripts/cbm-indexar.sh` (edad_lock / tomar_lock).
+
+    En GNU/Linux `stat -f %m` no falla: imprime `?` y sale con 0, así que el fallback a
+    `stat -c %Y` nunca corría, la edad quedaba vacía y `[ "" -lt 1800 ]` era falso: CUALQUIER
+    lock se robaba, incluso uno vivo. En macOS (donde corren los tests) `stat -f` funciona, por
+    eso los tests verdes no lo pillarán nunca: por eso aquí se afirma además que el script no
+    depende de la forma BSD de stat. Se ejercitan las funciones EXTRAÍDAS del script real, en
+    bash, con el repo temporal; no se indexa nada y la caché queda en un temporal."""
+
+    def setUp(self):
+        self.r = Repo()
+        harness._CONFIABLE.clear()
+        os.environ.pop("HARNESS_OVERRIDE", None)
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        self.r.cerrar()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        harness._CONFIABLE.clear()
+
+    # ------------------------------------------------------------------ utilidades
+    def funciones(self, *nombres):
+        """Definiciones de funciones copiadas del script real (una sola línea `}` cierra cada una)."""
+        src = (self.r.dir / "scripts/cbm-indexar.sh").read_text().splitlines()
+        out, dentro = [], False
+        for l in src:
+            if not dentro and any(l.startswith(f"{n}() {{") for n in nombres):
+                dentro = True
+            if dentro:
+                out.append(l)
+                if l == "}":
+                    dentro = False
+        texto = "\n".join(out)
+        for n in nombres:
+            self.assertIn(f"{n}() {{", texto, f"scripts/cbm-indexar.sh debe definir {n}")
+        return texto
+
+    def correr_bash(self, script):
+        """Ejecuta un script bash con las funciones del indexador (caché a un temporal)."""
+        p = self.tmp / "proba.sh"
+        p.write_text(script)
+        return sh(["bash", str(p)], self.r.dir, {"XDG_CACHE_HOME": str(self.tmp / "cache")})
+
+    def matar(self, p):
+        p.kill()
+        p.wait()
+
+    def lock(self):
+        return self.r.dir / ".harness/cbm/indexando.lock"
+
+    # ------------------------------------------------------------------------- regresión
+    def test_edad_lock_imprime_un_entero_y_un_lock_ajeno_no_se_roba(self):
+        funcs = self.funciones("edad_lock", "tomar_lock")
+        lock = self.lock()
+        durmiente = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(self.matar, durmiente)
+        # sin lock: entero grande (999999 = huérfano de hace muchísimo tiempo), nunca vacío
+        r = self.correr_bash(f'LOCK="{lock}"\nESTADO="{lock.parent}"\n{funcs}\nedad_lock\n')
+        edad = r.stdout.strip()
+        self.assertRegex(edad, r"^\d+$",
+                         f"edad_lock imprime SIEMPRE un entero, nunca vacío ni '?': {r.stdout!r} {r.stderr!r}")
+        self.assertGreaterEqual(int(edad), 999999, "sin lock la edad es grande (nadie debe tener prisa por robarlo)")
+        # los dos locks que hay que respetar: recién creado sin PID (se está escribiendo) y con PID vivo
+        for descripcion, pid in (("recién creado y todavía sin PID", ""), ("con un PID vivo", str(durmiente.pid))):
+            shutil.rmtree(lock, ignore_errors=True)
+            lock.mkdir(parents=True)
+            if pid:
+                (lock / "pid").write_text(pid)
+            r = self.correr_bash(f'LOCK="{lock}"\nESTADO="{lock.parent}"\n{funcs}\n'
+                                 'tomar_lock && echo ROBADO || echo RESPETADO\n')
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertIn("RESPETADO", r.stdout,
+                          f"un lock {descripcion} NO se roba: si se roba, este indexado y el "
+                          f"otro corren a la vez (salida: {r.stdout.strip()})")
+            if pid:
+                self.assertEqual((lock / "pid").read_text(), pid, "el lock queda intacto")
+            else:
+                self.assertFalse((lock / "pid").exists(), "el lock queda intacto")
+
+    def test_edad_lock_no_usa_stat_bsd_porque_en_gnu_imprime_interrogacion(self):
+        """Esta es la aserción que ata la regresión en GNU/Linux: `stat -f %m` (formato BSD)
+        devuelve `?` y sale con 0 en Linux, la edad quedaba vacía y el lock no se respetaba.
+        Se mira el CÓDIGO del script, sin comentarios: los comentarios pueden mencionar la
+        orden BSD para explicar por qué ya no se usa."""
+        lineas = [l for l in (self.r.dir / "scripts/cbm-indexar.sh").read_text().splitlines()
+                  if not l.lstrip().startswith("#")]
+        codigo = "\n".join(lineas)
+        self.assertNotIn("stat -f", codigo,
+                         "la edad del lock no se calcula con `stat -f` (orden BSD): en GNU/Linux "
+                         "`stat -f %m` imprime '?' y sale 0, la edad queda vacía y se roba "
+                         "cualquier lock, incluso uno vivo")
+        self.assertIn("python3", self.funciones("edad_lock"),
+                      "edad_lock calcula la edad con python3, que es la misma orden en macOS y en Linux")

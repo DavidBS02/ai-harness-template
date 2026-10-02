@@ -18,3 +18,8 @@ openspec/config.yaml.orig
 __pycache__/
 *.pyc
 !.env.example
+
+# Memoria de código: índice, binarios por plataforma e índice persistente del servidor (nunca se versiona)
+.harness/cbm/
+.harness/bin/
+.codebase-memory/

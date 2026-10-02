@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Hook de git: re-indexa la memoria de código tras cambiar de rama (D7).
+# requirements:/.githooks/post-checkout
+# Solo si $3 = 1 (cambio de rama: checkout, switch y worktree add, que lo dispara en el
+# worktree nuevo con su propia raiz y su propio estado en .harness/cbm/). Con $3 = 0
+# (git checkout -- <archivo>) el codigo del repo no cambio: no hay nada que indexar.
+# Durante un rebase o pull --rebase no hace nada aunque $3 = 1: post-checkout salta a mitad
+# del rebase e indexar ese estado intermedio deja el indice con simbolos que no existen.
+# Despues de un rebase se indexa a mano: scripts/cbm-indexar.sh
+# Nunca falla ni imprime (un codigo distinto de 0 aborta la operacion de git).
+[ "${3:-0}" = "1" ] || exit 0
+GITDIR="$(git rev-parse --git-dir 2>/dev/null || true)"
+for D in rebase-merge rebase-apply; do
+  [ -n "$GITDIR" ] && [ -e "$GITDIR/$D" ] && exit 0
+done
+RAIZ="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "$RAIZ" ] && [ -x "$RAIZ/scripts/cbm-indexar.sh" ]; then
+  "$RAIZ/scripts/cbm-indexar.sh" --fondo >/dev/null 2>&1 || true
+fi
+exit 0

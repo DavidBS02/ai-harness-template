@@ -57,6 +57,17 @@ BMAD entra antes, cuando el pedido es de producto o arquitectura, y **no ejecuta
 
 Toda la lógica está en `scripts/harness.py` (Python, solo biblioteca estándar) y todos los datos en `harness.json`. Hooks de git, hook de Claude, plugin de OpenCode y Actions son envoltorios de ese motor. `python3 scripts/harness.py sync` regenera los adaptadores (`opencode.json`, modelos de los agentes, `docs/harness/RUTAS.md`, `.cursor/rules`) y CI falla si se desincronizan. La suite `scripts/test_harness.py` (pruebas de riesgo, niveles, proceso del PR, evidencia, aprobación humana, presupuesto, guardias, secretos, plano de control, fail-closed, rutas, versiones y los escenarios adversariales de `docs/SEGURIDAD.md`) corre en el workflow `harness-selftest`.
 
+## Memoria de código
+
+Claude Code y los agentes de OpenCode que exploran consultan un índice del código ([codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp), versión fijada y verificada por SHA-256) en lugar de leer archivo por archivo. Viene **encendida**; `/descubrir` te recomienda si dejarla así. Un solo índice en `~/.cache/ai-harness/cbm/` sirve a todos tus repos a la vez. Solo en el host, no dentro del contenedor.
+
+- **Apagar:** `habilitado: false` en `harness.json → mcp.codebase_memory` → `python3 scripts/harness.py sync` → reinicia las herramientas.
+- **Encender:** `habilitado: true` → `sync` → `bash scripts/cbm-instalar.sh` → `bash scripts/cbm-indexar.sh`.
+- Se re-indexa sola, en segundo plano, tras `git pull`/`merge` y al cambiar de rama; a mano: `bash scripts/cbm-indexar.sh`.
+- Solo los scripts del harness escriben en el índice, porque son los que verifican que no entre ningún secreto. Claude, `build`, los revisores, `explorador` y `recolector` solo consultan, y `@mecanico` no lo recibe (abarata cada paso).
+
+Detalle: [`docs/harness-guide.md` §16](docs/harness-guide.md).
+
 ## Estructura
 
 ```
@@ -72,8 +83,9 @@ HANDOFF.md                   estado vivo de la rama
 .opencode/plugins/guardia.ts guardia de OpenCode
 opencode.json                modelos por defecto + proveedor OmniRoute
 .harness/                    base de openspec/config.yaml
-.githooks/                   pre-commit / commit-msg / pre-push por rol
-scripts/                     harness.py (motor) + test_harness.py · bootstrap, instalar-frameworks, doctor, github-setup, nuevo, estado, inventario, riesgo, cambio, arq, ejec, ejec-contenedor
+.mcp.json / .cbmignore       memoria de código para Claude y exclusiones del índice (generados por sync)
+.githooks/                   pre-commit / commit-msg / pre-push por rol · post-merge / post-checkout (re-indexado en segundo plano)
+scripts/                     harness.py (motor) + test_harness.py · bootstrap, instalar-frameworks, doctor, github-setup, nuevo, estado, inventario, riesgo, cambio, arq, ejec, ejec-contenedor · cbm, cbm-instalar, cbm-indexar (memoria de código)
 .github/                     plantillas de issue y PR; workflows ci, riesgo, proceso, harness-selftest
 docs/                        harness-guide, LECCIONES, DECISIONES (a mano) · ESTADO, harness/RUTAS (generados) · ONBOARDING · harness/ (MAPA, DELEGACION, INVENTARIO, resumenes/)
 _bmad/ _bmad-output/         BMAD (los instala instalar-frameworks.sh)

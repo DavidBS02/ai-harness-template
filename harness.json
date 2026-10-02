@@ -77,15 +77,15 @@
     ]
   },
   "agentes": {
-    "_doc": "Modelo por agente de OpenCode. 'sync' lo escribe en .opencode/agents/*.md y opencode.json. Verifica los IDs con /models.",
-    "build": "opencode-go/glm-5.3",
-    "mecanico": "opencode-go/glm-5.3-flash",
+    "_doc": "Modelo por agente de OpenCode. 'sync' lo escribe en .opencode/agents/*.md y opencode.json. Verifica los IDs con /models. Criterio (docs/LECCIONES.md §21): en un agente, el costo lo domina la LECTURA DE CACHÉ (contexto reenviado en cada paso), no la entrada; elige por precio de caché y por peticiones por ventana de 5 h (opencode.ai/docs/go). 2026-10-01: GLM-5.3 $0.26/M caché y 220 peticiones/5 h; DeepSeek V4 Pro $0.022 y 1050; MiMo-V2.6-Pro $0.0036 y 3250; MiMo-V2.6-Flash $0.0028 y 30100.",
+    "build": "opencode-go/deepseek-v4.1-flash",
+    "mecanico": "opencode/mimo-v2.6-flash-free",
     "explorador": "opencode-go/deepseek-v4.1-flash",
-    "contexto-largo": "opencode-go/kimi-k3",
-    "recolector": "opencode-go/kimi-k3",
-    "revisor-gratis": "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR",
-    "revisor-fuerte": "omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA",
-    "revisor-bmad": "omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA"
+    "contexto-largo": "opencode-go/deepseek-v4-pro",
+    "recolector": "opencode-go/deepseek-v4-pro",
+    "revisor-gratis": "opencode-go/deepseek-v4.1-flash",
+    "revisor-fuerte": "opencode-go/deepseek-v4-pro",
+    "revisor-bmad": "opencode-go/deepseek-v4-pro"
   },
   "claude": {
     "decidir": "el modelo más capaz de tu plan (/model)",
@@ -260,7 +260,10 @@
       "^\\.opencode/plugins/",
       "^\\.opencode/agents/",
       "^opencode\\.json$",
-      "^\\.harness/(contenedor/|versiones\\.json$|openspec-config\\.base\\.yaml$)"
+      "^\\.harness/(contenedor/|versiones\\.json$|openspec-config\\.base\\.yaml$)",
+      "^scripts/cbm(-[a-z]+\\.sh)?$",
+      "^\\.mcp\\.json$",
+      "^\\.cbmignore$"
     ],
     "arquitecto_puede": [
       "^harness\\.json$",
@@ -334,33 +337,69 @@
       "costo_usd_max": 8.0
     }
   },
+  "modelo_por_riesgo": {
+    "_doc": "Política (docs/LECCIONES.md §21), la aplica /ejecutar-cambio pidiendo el cambio con /models (selector de OpenCode); el motor no la impone. Al empezar cada sesión: `python3 scripts/harness.py riesgo` (manda el más alto entre proposal, rutas y tamaño) y se usa el modelo de esta tabla. Si con el modelo de bajo/medio una verificación falla 3 veces, se escala al de 'alto' para esa tarea y se anota en HANDOFF.md.",
+    "build": {
+      "bajo": "opencode-go/deepseek-v4.1-flash",
+      "medio": "opencode-go/deepseek-v4.1-flash",
+      "alto": "opencode-go/deepseek-v4-pro"
+    }
+  },
   "fallbacks": {
-    "_doc": "Si el modelo del agente no responde: cambia con /model al primero disponible. No es automático; ruta y doctor lo muestran.",
+    "_doc": "Si el modelo del agente no responde: cambia con /models (selector de OpenCode) al primero disponible. No es automático; ruta y doctor lo muestran.",
     "build": [
-      "opencode-go/kimi-k3"
+      "opencode-go/deepseek-v4-pro",
+      "opencode-go/mimo-v2.6-pro",
+      "opencode-go/glm-5.3"
     ],
     "mecanico": [
+      "opencode-go/mimo-v2.6-flash",
       "opencode-go/deepseek-v4.1-flash"
     ],
     "explorador": [
-      "opencode-go/glm-5.3-flash"
+      "opencode-go/mimo-v2.6-flash"
     ],
     "contexto-largo": [
-      "opencode-go/glm-5.3"
+      "opencode-go/kimi-k3"
     ],
     "recolector": [
-      "opencode-go/deepseek-v4.1-flash"
+      "opencode-go/mimo-v2.6-pro",
+      "opencode-go/kimi-k3"
     ],
     "revisor-gratis": [
-      "opencode-go/deepseek-v4.1-flash"
+      "opencode-go/mimo-v2.6-flash",
+      "opencode/longcat-2.5-preview-free"
     ],
     "revisor-fuerte": [
-      "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR",
+      "opencode-go/mimo-v2.6-pro",
       "opencode-go/kimi-k3"
     ],
     "revisor-bmad": [
-      "omniroute/REEMPLAZA-CON-ID-DEL-COMBO-REVISOR"
+      "opencode-go/mimo-v2.6-pro"
     ]
+  },
+  "mcp": {
+    "_doc": "Servidores MCP compartidos por Claude Code y OpenCode. 'sync' genera .mcp.json (Claude) y el bloque 'mcp' de opencode.json desde aquí. La versión y los checksums están en .harness/versiones.json → binarios. Se apaga con habilitado:false + sync (docs/harness-guide.md → Memoria de código).",
+    "codebase_memory": {
+      "_doc": "Memoria de código (codebase-memory-mcp). habilitado: el interruptor único. servidor: nombre del MCP y prefijo de sus herramientas (Claude: mcp__<servidor>__<tool>; OpenCode: <servidor>_<tool>). cache_dir: índice compartido por TODOS los repos con harness del usuario (el servidor admite un solo daemon por usuario); estado_dir: estado local del repo (hash de exclusiones, log, lock). En OpenCode el servidor solo se ofrece a agentes_consulta (sus 17 herramientas viajan en cada paso; @mecanico y los agentes nuevos no lo reciben) y las de escritura solo a agentes_escritura (contenido en agentes_consulta), que por defecto está VACÍO: el servidor MCP no verifica secretos, así que el índice solo lo escriben los scripts del harness, que sí lo hacen (opción a, 2026-10-02). Claude consulta y tiene vetada la escritura. Solo host: en el contenedor no hay binario. Indexar lo hacen solo los scripts del harness: hooks post-merge/post-checkout (en segundo plano), scripts/cbm-indexar.sh (manual) y /init-harness. El servidor no indexa solo (auto_index y watcher apagados por scripts/cbm). ignorar: patrones gitignore que reflejan 'secretos' → .cbmignore; 'harness.py cbm verificar-secretos' falla si un secreto del repo quedaría indexado.",
+      "habilitado": true,
+      "servidor": "codebase-memory",
+      "comando": "scripts/cbm",
+      "cache_dir": "${XDG_CACHE_HOME:-~/.cache}/ai-harness/cbm",
+      "estado_dir": ".harness/cbm",
+      "agentes_consulta": ["build", "explorador", "recolector", "contexto-largo", "revisor-gratis", "revisor-fuerte", "revisor-bmad"],
+      "agentes_escritura": [],
+      "herramientas_escritura": ["index_repository", "delete_project", "manage_adr", "ingest_traces"],
+      "ignorar": [
+        ".env", ".env.*", "!.env.example", "!.env.sample", "!.env.template",
+        ".ssh", ".aws", ".kube", ".gnupg", ".config/gh", ".docker/config.json",
+        ".npmrc", ".netrc", ".pypirc", ".git-credentials",
+        "*.pem", "*.key", "*.p12", "*.pfx", "*.keystore", "*.jks",
+        "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
+        "credentials.json", "service-account*.json", "client_secret*.json",
+        ".harness/cbm/", ".harness/bin/", ".codebase-memory/"
+      ]
+    }
   },
   "escalamiento": {
     "_doc": "Reglas explícitas; nada escala solo a un modelo caro.",

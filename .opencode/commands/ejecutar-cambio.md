@@ -1,14 +1,26 @@
 ---
-description: Implementa un change de OpenSpec, lo revisa según su riesgo y deja el PR listo para juzgar.
+description: Implementa un change de OpenSpec (un grupo de tareas por sesión), lo revisa según su riesgo y deja el PR listo para juzgar.
 ---
-Vas a implementar el change `$ARGUMENTS`.
-1. `git branch --show-current` debe ser `feat/$ARGUMENTS` o `feat/<n>-$ARGUMENTS`, nunca main. Lee completo `openspec/changes/$ARGUMENTS/` y la sección "Puntos de entrada" de AGENTS.md.
-2. Implementa con `/opsx-apply $ARGUMENTS`, tarea por tarea:
-   - @explorador para ubicar código; @mecanico para tests y docs.
-   - typecheck y tests antes de marcar cada tarea en `tasks.md`; un commit pequeño por tarea o bloque.
+Vas a implementar el change `$ARGUMENTS`. Formato: `<id>` o `<id> grupo <N>[,<M>]`.
+
+**Modelo según el riesgo (primer paso de cada sesión).** Corre `python3 scripts/harness.py riesgo` y mira `harness.json → modelo_por_riesgo.build`. Si el modelo de esta sesión no es el que toca a ese riesgo, dile al usuario exactamente: «Este change es de riesgo <r>: abre `/models`, elige `<id>` y vuelve a lanzar el comando», y DETENTE. Riesgo bajo o medio = modelo barato; riesgo alto (zona roja o plano de control) = el modelo fuerte. Si con el barato una verificación falla 3 veces, pide al usuario escalar al de `alto` para esa tarea y anótalo en HANDOFF.md.
+
+**Economía (obligatoria).** El costo de un agente crece con *contexto acumulado × pasos*, así que:
+- **Una sesión = un grupo de `tasks.md`** (o los que diga `$ARGUMENTS`). Si no se indica grupo, haz el primero con tareas sin marcar. Al cerrar el grupo: commit, `/handoff` y DETENTE con «Grupo N listo. Siguiente: `/ejecutar-cambio <id> grupo N+1` en una sesión NUEVA».
+- **Lee HANDOFF.md primero.** Del change, lee completos solo `tasks.md` y lo que el grupo cita del design y del spec, no todo.
+- **Archivos grandes:** busca con `grep -n` o @explorador y lee solo los rangos que vas a tocar. Nunca leas un archivo de más de 300 líneas entero.
+- **Delega por costo:** @mecanico (modelo Flash) para tests, docs, empaquetado y cambios repetitivos; @explorador para ubicar código. Tú (`build`) solo lo que exige diseño o toca seguridad. Si el encabezado del grupo dice `(@mecanico)`, delégalo entero y revisa su diff.
+- **Tests enfocados por tarea** (la clase o el test que toca). La suite completa solo al cerrar el grupo y antes de las revisiones.
+- **Salidas cortas siempre**: cada salida se queda en el contexto y se paga en todos los pasos siguientes. Tests con `-q … 2>&1 | tail -20`; comandos ruidosos con `--quiet` o `| tail -n 10`; `git diff --stat` antes que el diff completo; nunca imprimas archivos enteros con `cat`. No releas lo que ya leíste en esta sesión.
+- **Memoria de código** (si el agente la tiene): para «¿dónde está X?» o «¿quién llama a Y?», usa `codebase-memory_search_graph` o `codebase-memory_trace_path` antes que `grep` y lecturas.
+- **Depuración:** si una verificación falla 3 veces seguidas, para, anota en HANDOFF.md lo intentado y detente. No sigas probando a ciegas.
+
+1. `git branch --show-current` debe ser `feat/<id>` o `feat/<n>-<id>`, nunca main. Lee la sección "Puntos de entrada" de AGENTS.md.
+2. Implementa con `/opsx-apply <id>`, tarea por tarea, solo las del grupo:
+   - typecheck y tests enfocados antes de marcar cada tarea en `tasks.md`; un commit pequeño por tarea o bloque.
    - Las tareas "(manual)" no las marques: déjalas en HANDOFF.md.
    - NUNCA edites proposal, design ni specs (las guardias lo bloquean). Si falta algo del spec o aparece un ajuste de esquema, config o AD: HANDOFF.md y DETENTE (el arquitecto corre /opsx:update).
-3. `python3 scripts/harness.py nivel` → nivel, riesgo y requisitos. Haz commit de todo el código ANTES de revisar: la evidencia queda atada a ese commit y se invalida si después cambias código.
+3. **Solo cuando no quedan tareas sin marcar** (salvo las manuales), en una sesión propia: `python3 scripts/harness.py nivel` → nivel, riesgo y requisitos. Haz commit de todo el código ANTES de revisar: la evidencia queda atada a ese commit y se invalida si después cambias código.
    - Revisión 1 siempre (nivel ≥ 1): @revisor-gratis. Guarda su salida completa en `/tmp/rev1.md` y regístrala:
      `python3 scripts/harness.py revision registrar --revisor revisor-gratis --modelo <id del modelo que respondió> --veredicto APROBAR|CORREGIR --hallazgos /tmp/rev1.md`
    - Revisión 2 si el riesgo es medio o alto: @revisor-fuerte, igual, con `--revisor revisor-fuerte`.

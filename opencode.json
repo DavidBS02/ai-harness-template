@@ -1,6 +1,13 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode-go/glm-5.3",
+  "permission": {
+    "external_directory": {
+      "/tmp/**": "allow",
+      "/private/tmp/**": "allow",
+      "/var/folders/**": "allow"
+    }
+  },
+  "model": "opencode-go/deepseek-v4.1-flash",
   "small_model": "opencode-go/deepseek-v4.1-flash",
   "default_agent": "build",
   "provider": {
@@ -11,13 +18,85 @@
         "baseURL": "{env:OMNIROUTE_BASE_URL}",
         "apiKey": "{env:OMNIROUTE_API_KEY}"
       },
-      "models": {
-        "REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA": {
-          "name": "DeepSeek V4 (NVIDIA NIM) - revisor fuerte"
-        },
-        "REEMPLAZA-CON-ID-DEL-COMBO-REVISOR": {
-          "name": "Combo revisor: DeepSeek V4 -> Mistral Large -> Gemini Flash"
-        }
+      "models": {}
+    }
+  },
+  "mcp": {
+    "codebase-memory": {
+      "type": "local",
+      "command": [
+        "sh",
+        "-c",
+        "exec \"$(git rev-parse --show-toplevel)/scripts/cbm\""
+      ],
+      "enabled": true
+    }
+  },
+  "tools": {
+    "codebase-memory_*": false
+  },
+  "agent": {
+    "build": {
+      "tools": {
+        "codebase-memory_*": true,
+        "codebase-memory_index_repository": false,
+        "codebase-memory_delete_project": false,
+        "codebase-memory_manage_adr": false,
+        "codebase-memory_ingest_traces": false
+      }
+    },
+    "explorador": {
+      "tools": {
+        "codebase-memory_*": true,
+        "codebase-memory_index_repository": false,
+        "codebase-memory_delete_project": false,
+        "codebase-memory_manage_adr": false,
+        "codebase-memory_ingest_traces": false
+      }
+    },
+    "recolector": {
+      "tools": {
+        "codebase-memory_*": true,
+        "codebase-memory_index_repository": false,
+        "codebase-memory_delete_project": false,
+        "codebase-memory_manage_adr": false,
+        "codebase-memory_ingest_traces": false
+      }
+    },
+    "contexto-largo": {
+      "tools": {
+        "codebase-memory_*": true,
+        "codebase-memory_index_repository": false,
+        "codebase-memory_delete_project": false,
+        "codebase-memory_manage_adr": false,
+        "codebase-memory_ingest_traces": false
+      }
+    },
+    "revisor-gratis": {
+      "tools": {
+        "codebase-memory_*": true,
+        "codebase-memory_index_repository": false,
+        "codebase-memory_delete_project": false,
+        "codebase-memory_manage_adr": false,
+        "codebase-memory_ingest_traces": false
+      }
+    },
+    "revisor-fuerte": {
+      "tools": {
+        "codebase-memory_*": true,
+        "codebase-memory_index_repository": false,
+        "codebase-memory_delete_project": false,
+        "codebase-memory_manage_adr": false,
+        "codebase-memory_ingest_traces": false
+      }
+    },
+    "revisor-bmad": {
+      "tools": {
+        "codebase-memory_*": true,
+        "codebase-memory_index_repository": false,
+        "codebase-memory_delete_project": false,
+        "codebase-memory_manage_adr": false,
+        "codebase-memory_ingest_traces": false
       }
     }
   }

@@ -1,7 +1,7 @@
 ---
 description: Solo para leer repos enteros o muchos archivos a la vez. Caro - úsalo poco.
 mode: primary
-model: opencode-go/kimi-k3
+model: opencode-go/deepseek-v4-pro
 permission:
   edit: ask
   bash:

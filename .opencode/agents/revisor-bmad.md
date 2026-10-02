@@ -1,7 +1,7 @@
 ---
 description: Corre skills BMAD de revisión (bmad-review, bmad-code-review, bmad-walkthrough) con un modelo de otra familia y deja el resultado en _bmad-output/digests/. No edita nada más.
 mode: subagent
-model: omniroute/REEMPLAZA-CON-ID-DE-DEEPSEEK-V4-NVIDIA
+model: opencode-go/deepseek-v4-pro
 permission:
   edit: ask
   bash:

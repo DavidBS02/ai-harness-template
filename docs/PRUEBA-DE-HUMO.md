@@ -10,7 +10,7 @@ El repo base ya pasa sus pruebas automáticas (`harness-selftest`). Lo que falta
 
 Sigue [`ESTANDAR-PROYECTO.md`](ESTANDAR-PROYECTO.md) §1 (máquina). Además:
 
-1. En OpenCode: `/connect` → OpenCode Go y `/models`; anota los IDs reales de GLM-5.3, GLM-5.3-Flash, DeepSeek V4.1 Flash y Kimi K3.
+1. En OpenCode: `/connect` → OpenCode Go y `/models`; comprueba que existen los IDs de `harness.json → agentes` y `fallbacks` (`docs/harness/RUTAS.md`).
 2. En OmniRoute (http://localhost:20128): combo `revisor` = DeepSeek V4 (NVIDIA) → Mistral Large → Gemini Flash, sin compresión.
 3. En tu clon de `ai-harness-template`: pega los IDs en `harness.json` → `agentes`, corre `python3 scripts/harness.py sync` y `python3 -m unittest discover -s scripts -p 'test_*.py'`, y sube el cambio con un PR.
 
