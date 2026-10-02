@@ -75,6 +75,15 @@ done
 if [ "$indexa" -eq 1 ] && [ -z "$repo_a_indexar" ]; then
   repo_a_indexar="$(printf '%s\n' "$@" | sed -n 's/.*"repo[-_]path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
 fi
+if [ "$indexa" -eq 1 ] && [ -z "$repo_a_indexar" ]; then
+  # `--args-file <json>` y el JSON por stdin también llevan el repo, pero aquí no se pueden
+  # leer: el gate acabaría verificando la raíz (que no es el repo que se indexa) y daría una
+  # falsa sensación de seguridad. Medido: con --args-file un .env sin excluir se indexaba sin
+  # quejarse. Se rechazan esas formas en vez de indexar a ciegas.
+  echo "⛔ memoria de código: indexar con --args-file o por stdin no se puede verificar (el repo" >&2
+  echo "   a indexar iría dentro del JSON). Indexa con --repo-path <ruta>, que sí se comprueba." >&2
+  exit 1
+fi
 if [ $# -eq 0 ] || [ "$indexa" -eq 1 ]; then
   # Sin repo identificable se verifica la raíz: ante la duda, fail-closed.
   [ -n "$repo_a_indexar" ] || repo_a_indexar="$RAIZ"
