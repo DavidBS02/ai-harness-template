@@ -70,7 +70,7 @@ El servidor SHALL guardar el índice de todos los repos que usan el harness en u
 - **THEN** no aparece ningún archivo bajo `.harness/cbm/`, `.harness/bin/` ni `.codebase-memory/`
 
 ### Requirement: Acceso al índice por rol
-La memoria de código SHALL ofrecerse solo a quien explora código, porque la definición de sus herramientas viaja en cada paso de cada agente que la tiene. En OpenCode, las herramientas de consulta MUST estar disponibles solo para los agentes de `mcp.codebase_memory.agentes_consulta` (por defecto `build`, `explorador`, `recolector`, `contexto-largo` y los tres revisores); cualquier otro agente (`@mecanico`, subagentes integrados y agentes creados después) MUST NOT recibir ninguna herramienta del servidor. Las herramientas que modifican estado (`index_repository`, `delete_project`, `manage_adr` e `ingest_traces`) SHALL estar disponibles solo para `agentes_escritura` (por defecto, solo `build`) y para los scripts del harness. Claude Code conserva las de consulta y MUST tener vetadas las de escritura.
+La memoria de código SHALL ofrecerse solo a quien explora código, porque la definición de sus herramientas viaja en cada paso de cada agente que la tiene. En OpenCode, las herramientas de consulta MUST estar disponibles solo para los agentes de `mcp.codebase_memory.agentes_consulta` (por defecto `build`, `explorador`, `recolector`, `contexto-largo` y los tres revisores); cualquier otro agente (`@mecanico`, subagentes integrados y agentes creados después) MUST NOT recibir ninguna herramienta del servidor. Las herramientas que modifican estado (`index_repository`, `delete_project`, `manage_adr` e `ingest_traces`) MUST NOT estar disponibles para ningún agente por defecto (`agentes_escritura` vacío). El índice SHALL escribirse solo a través de los scripts del harness (hooks, `scripts/cbm-indexar.sh`, `/init-harness`), que verifican los secretos antes de cada indexado; el servidor MCP no tiene ese control y una llamada directa a `index_repository` lo saltaría. Claude Code conserva las de consulta y MUST tener vetadas las de escritura.
 
 #### Scenario: Mecánico sin memoria
 - **WHEN** se invoca `@mecanico`
@@ -92,9 +92,9 @@ La memoria de código SHALL ofrecerse solo a quien explora código, porque la de
 - **WHEN** alguien añade `.opencode/agents/nuevo.md` sin tocar `agentes_consulta` ni `agentes_escritura`
 - **THEN** ese agente no tiene disponible ninguna herramienta del servidor
 
-#### Scenario: Ejecutor indexa
-- **WHEN** el agente `build` de OpenCode invoca `index_repository`
-- **THEN** la herramienta está disponible
+#### Scenario: Ejecutor no indexa por MCP
+- **WHEN** el agente `build` de OpenCode invoca `index_repository` del servidor
+- **THEN** la herramienta no está disponible, y para re-indexar usa `bash scripts/cbm-indexar.sh`, que verifica los secretos
 
 ### Requirement: Secretos fuera del índice
 Ningún archivo que coincida con `harness.json → secretos` (salvo `secretos.excepto`) SHALL entrar al índice ni ser consultable. Las exclusiones del indexador MUST generarse desde la lista explícita `mcp.codebase_memory.ignorar`, y el selftest MUST fallar si esa lista no cubre un archivo de ejemplo de cada patrón de `secretos.rutas`. El harness MUST verificar con las reglas del indexador (jerarquía de `.gitignore` más `.cbmignore`, sin la configuración global de git del usuario) que todo archivo secreto presente en el repo queda excluido, antes de cada indexado y al arrancar el servidor. Si alguno no queda excluido, MUST NOT indexar y el servidor MUST NOT arrancar. Si las exclusiones cambiaron desde el último indexado, el proyecto de ese repo MUST borrarse del índice antes de volver a indexar, sin tocar los proyectos de otros repos.

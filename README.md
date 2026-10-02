@@ -64,7 +64,7 @@ Claude Code y los agentes de OpenCode que exploran consultan un índice del cód
 - **Apagar:** `habilitado: false` en `harness.json → mcp.codebase_memory` → `python3 scripts/harness.py sync` → reinicia las herramientas.
 - **Encender:** `habilitado: true` → `sync` → `bash scripts/cbm-instalar.sh` → `bash scripts/cbm-indexar.sh`.
 - Se re-indexa sola, en segundo plano, tras `git pull`/`merge` y al cambiar de rama; a mano: `bash scripts/cbm-indexar.sh`.
-- Solo el ejecutor (`build`) y los scripts del harness escriben en el índice; Claude, los revisores, `explorador` y `recolector` solo consultan, y `@mecanico` no lo recibe (abarata cada paso). Los secretos nunca se indexan.
+- Solo los scripts del harness escriben en el índice, porque son los que verifican que no entre ningún secreto. Claude, `build`, los revisores, `explorador` y `recolector` solo consultan, y `@mecanico` no lo recibe (abarata cada paso).
 
 Detalle: [`docs/harness-guide.md` §16](docs/harness-guide.md).
 
