@@ -82,8 +82,8 @@
 
 ## 12. Nadie indexa por MCP (build, opción a del 2026-10-02)
 
-- [ ] 12.1 Con `agentes_escritura: []` (ya en `harness.json`), correr `python3 scripts/harness.py sync`: en `opencode.json`, `build` debe tener `codebase-memory_*: true` y las 4 de escritura en `false`, como los demás agentes de consulta. Si `sync` o su validación asumen que `agentes_escritura` no está vacío, corregirlos. Verificar con `python3 -c "import json;print(json.load(open('opencode.json'))['agent']['build'])"`
-- [ ] 12.2 Actualizar los tests 9.1 y 9.2 al nuevo contrato: ningún agente recibe herramientas de escritura y la lista vacía es válida. Añadir un caso con `agentes_escritura` no vacío para que la rama siga cubierta. Verificar con el selftest enfocado en esas clases
+- [x] 12.1 Con `agentes_escritura: []` (ya en `harness.json`), correr `python3 scripts/harness.py sync`: en `opencode.json`, `build` debe tener `codebase-memory_*: true` y las 4 de escritura en `false`, como los demás agentes de consulta. Si `sync` o su validación asumen que `agentes_escritura` no está vacío, corregirlos. Verificar con `python3 -c "import json;print(json.load(open('opencode.json'))['agent']['build'])"`
+- [x] 12.2 Actualizar los tests 9.1 y 9.2 al nuevo contrato: ningún agente recibe herramientas de escritura y la lista vacía es válida. Añadir un caso con `agentes_escritura` no vacío para que la rama siga cubierta. Verificar con el selftest enfocado en esas clases
 - [ ] 12.3 Repetir la Revisión 1 (@revisor-gratis) y la 2 (@revisor-fuerte) sobre el commit final, porque la evidencia queda atada al commit, y registrarlas; si aprueban, hacer 11.3. Verificar con `python3 scripts/harness.py revision listar` (las dos vigentes y en APROBAR)
 
 ## 11. Prueba de humo e integración (build)
