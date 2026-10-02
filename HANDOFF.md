@@ -112,3 +112,46 @@ Confirmar en una sesión real de OpenCode que el veto global `tools: {"codebase-
   el `.gitignore` del repo). Ojo con esto al añadir hooks nuevos al fixture.
 - Los tests de hooks lanzan el indexado en segundo plano: `TestHooksReindexado` espera con límite
   de tiempo a que el worker termine antes de cerrar el temporal.
+
+## Grupo 10,11 (S4): diagnóstico, empaquetado y prueba de humo
+
+- **10.1–10.3** (delegadas a @mecanico, diff revisado por build): `doctor` con la memoria
+  encendida informa binario+versión fijada, secretos sin excluir, hooks de re-indexado
+  ejecutables y existencia del índice; apagado, una sola línea `✓ memoria de código apagada`.
+  Severidades (según el spec): binario ausente/versión distinta → aviso; secreto sin excluir y
+  hooks ausentes o sin `+x` → error; sin índice → aviso. `versiones` lista también `binarios`.
+  `bootstrap.sh` copia los 3 scripts y los 2 hooks nuevos y añade las 3 líneas al `.gitignore`
+  destino (sin duplicar). `instalar-frameworks.sh` llama a `cbm-instalar.sh` solo si
+  `mcp.codebase_memory.habilitado` es true (lee `HARNESS_CONFIG` igual que `scripts/cbm`).
+- **Decisión de @mecanico que conviene conocer**: «existencia del índice» se comprueba con
+  archivos locales (`.harness/cbm/cbmignore.sha256` + que exista la caché compartida), **no**
+  con `scripts/cbm cli list_projects`, porque eso arrancaría el daemon dentro de `doctor`
+  (~9 s en frío, escribe en la caché compartida y puede fallar si hay otro daemon con otra
+  `CBM_CACHE_DIR`). `doctor` se mantiene, por tanto, sin efectos de arranque.
+- **11.1 (prueba de humo), evidencia pegada.** Destino: `$(mktemp -d)/demo`, copia de este repo:
+  - `bash scripts/bootstrap.sh "$DEST"` → OK; en el destino `+ scripts/cbm`,
+    `+ scripts/cbm-instalar.sh`, `+ scripts/cbm-indexar.sh`, `+ .githooks/post-merge`,
+    `+ .githooks/post-checkout`, y `~ .gitignore: .harness/cbm/`, `~ .gitignore: .harness/bin/`,
+    `~ .gitignore: .codebase-memory/`. `+ AGENTS.md`, `+ CLAUDE.md`, adaptadores generados.
+  - `python3 scripts/harness.py sync --check` en el destino → `adaptadores al día` (RC 0).
+  - `bash scripts/cbm-instalar.sh` → `✓ codebase-memory-mcp 0.11.0 instalado en
+    .harness/bin/darwin-arm64/codebase-memory-mcp (SHA-256 verificado)` (RC 0).
+  - `bash scripts/cbm-indexar.sh` → `este repo no estaba en el índice: se indexa en frío`,
+    luego `{"project":"private-var-folders-...-demo", ..., "nodes":819, "edges":1836,
+    "status":"indexed"}` y `índice al día`. Excluidos: `.claude`, `.git`, `.harness/bin`,
+    `.harness/cbm`.
+  - `scripts/cbm cli --quiet list_projects` en el destino →
+    `private-var-folders-...-demo /private/var/folders/.../demo main` (`total: 2`, RC 0): el
+    repo nuevo aparece en el índice **compartido**, junto con el de este repo.
+- **Freno que hubo que quitar para 11.1** (importante para el humano): había un daemon
+  `codebase-memory-mcp` con *runtime muerto* (arrancado a las 17:32 desde este repo) que
+  retiene el endpoint: `CBM daemon endpoint is held by pid 12499 but that process answered no
+  rendezvous within 30000 ms; the daemon runtime is likely dead`. **Tuve que matar el PID**
+  (`kill 12499`, luego `kill 12427`, el proceso padre) antes de que `cbm-indexar.sh` respondiera; si no, `cbm-indexar.sh` se cuelga ~30 s por intento y acaba con `⛔`. Si a
+  alguien se le cuelga `cbm-indexar.sh`, es esto: `ps aux | grep codebase-memory` y matar el
+  proceso. No es un fallo del código del change.
+- Ojo: `.harness/bin/darwin-arm64/` de **este** repo estaba vacío al empezar S4 (alguien borró
+  el binario con el daemon abierto). Por eso `doctor` aquí avisa `! codebase-memory-mcp no está
+  instalado → bash scripts/cbm-instalar.sh`. Es un aviso, no un error, y es justo el escenario
+  del spec («binario ausente»). Corre `bash scripts/cbm-instalar.sh` en el repo si lo quieres
+  instalado.

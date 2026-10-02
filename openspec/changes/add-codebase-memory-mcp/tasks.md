@@ -82,6 +82,6 @@
 
 ## 11. Prueba de humo e integración (build)
 
-- [ ] 11.1 `bash scripts/bootstrap.sh "$(mktemp -d)/demo"` → en el destino: `python3 scripts/harness.py sync --check`, `bash scripts/cbm-instalar.sh`, `bash scripts/cbm-indexar.sh` y `scripts/cbm cli --quiet list_projects` muestra el repo; verificar con la salida pegada en HANDOFF.md
+- [x] 11.1 `bash scripts/bootstrap.sh "$(mktemp -d)/demo"` → en el destino: `python3 scripts/harness.py sync --check`, `bash scripts/cbm-instalar.sh`, `bash scripts/cbm-indexar.sh` y `scripts/cbm cli --quiet list_projects` muestra el repo; verificar con la salida pegada en HANDOFF.md
 - [ ] 11.2 Selftest completo y doctor en verde en este repo; verificar con `python3 scripts/harness.py doctor --tests`
 - [ ] 11.3 Push de la rama, PR listo (`gh pr ready`) con la salida de `revision listar` (revisiones 1, 2 y 3 por riesgo alto); verificar con `gh pr checks` (el merge y la aprobación humana los hace el usuario vía `/juzgar-pr`; el cambio llega a los proyectos cuando está en `main`, que es de donde copia `bootstrap.sh`)
