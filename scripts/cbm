@@ -49,18 +49,36 @@ export HOME="$CACHE_DIR/home"                # fallback activo: la config vive e
 mkdir -p "$CACHE_DIR" "$CACHE_DIR/config" "$CACHE_DIR/home"
 
 # Gate de secretos: al arrancar como servidor MCP (sin argumentos) y también antes de INDEXAR.
-# `verificar-secretos` solo cubría el arranque, así que un index_repository dirigido a otro repo
+# verificar-secretos solo cubría el arranque, así que un index_repository dirigido a otro repo
 # (la caché es compartida y el servidor separa los proyectos por ruta) se indexaba sin comprobarlo.
 # Las consultas (list_projects, search_code) no indexan nada y no pasan por aquí.
+repo_a_indexar=""
 indexa=0
-case " $* " in *" index_repository "*) indexa=1;; esac
-if [ $# -eq 0 ] || [ "$indexa" -eq 1 ]; then
-  repo_a_verificar="$RAIZ"
-  if [ "$indexa" -eq 1 ]; then
-    previo="$(printf '%s\n' "$@" | sed -n 's/^--repo-path //p' | head -1)"
-    [ -n "$previo" ] && repo_a_verificar="$previo"
+espera_ruta=0
+for arg in "$@"; do
+  if [ "$espera_ruta" -eq 1 ]; then
+    espera_ruta=0
+    case "$arg" in
+      -*) ;;                                   # era otro flag: --repo-path venía sin valor
+      \{*) ;;                                  # el valor venía dentro de un JSON, se busca luego
+      *) repo_a_indexar="$arg";;
+    esac
+    continue
   fi
-  python3 "$RAIZ/scripts/harness.py" cbm verificar-secretos "$repo_a_verificar" || exit 1
+  case "$arg" in
+    index_repository) indexa=1;;
+    --repo-path) espera_ruta=1;;
+    --repo-path=*) repo_a_indexar="${arg#--repo-path=}";;
+  esac
+done
+# La ruta también puede venir dentro de un argumento JSON (cli <tool> '<json>').
+if [ "$indexa" -eq 1 ] && [ -z "$repo_a_indexar" ]; then
+  repo_a_indexar="$(printf '%s\n' "$@" | sed -n 's/.*"repo[-_]path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+fi
+if [ $# -eq 0 ] || [ "$indexa" -eq 1 ]; then
+  # Sin repo identificable se verifica la raíz: ante la duda, fail-closed.
+  [ -n "$repo_a_indexar" ] || repo_a_indexar="$RAIZ"
+  python3 "$RAIZ/scripts/harness.py" cbm verificar-secretos "$repo_a_indexar" || exit 1
 fi
 
 # auto_index y watcher apagados, idempotente (marcador por versión; vive en la caché compartida
