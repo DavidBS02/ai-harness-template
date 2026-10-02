@@ -797,6 +797,13 @@ class TestMemoriaDeCodigo(unittest.TestCase):
         self.assertIs(oj["tools"]["codebase-memory_*"], False, "veto global por patrón")
         for a in self.mcp_cfg()["agentes_consulta"]:
             self.assertIs(oj["agent"][a]["tools"]["codebase-memory_*"], True, a)
+        mcp = self.mcp_cfg()
+        self.assertEqual(mcp["agentes_escritura"], [], "nadie indexa por MCP: la lista vacía es el contrato")
+        prefijo = f"{mcp['servidor']}_"
+        for a in mcp["agentes_consulta"]:
+            for w in mcp["herramientas_escritura"]:
+                self.assertIs(oj["agent"][a]["tools"][f"{prefijo}{w}"], False,
+                              f"{a} solo consulta: {w} vetada")
 
     def test_9_1_apagado_retira_mcp_json_cbmignore_y_claves(self):
         harness.sync(self.r.dir)
@@ -860,7 +867,7 @@ class TestMemoriaDeCodigo(unittest.TestCase):
 
     def test_9_1_sync_cli_config_incoherente_sale_1_y_advertencia(self):
         c = self.cfg()
-        c["mcp"]["codebase_memory"]["agentes_consulta"] = ["explorador"]  # build (escritura) queda fuera
+        c["mcp"]["codebase_memory"]["agentes_escritura"] = ["mecanico"]  # no está en agentes_consulta
         self.escribir_cfg(c)
         res = self.cli("sync")
         self.assertEqual(res.returncode, 1)
@@ -899,6 +906,28 @@ class TestMemoriaDeCodigo(unittest.TestCase):
         for a, ag in oj["agent"].items():
             if a not in mcp["agentes_consulta"]:
                 self.assertEqual([k for k in ag.get("tools", {}) if k.startswith(pref)], [], f"{a} no recibe claves del servidor")
+
+    def test_9_2_con_agentes_escritura_abre_solo_a_esos(self):
+        cfg = self.cfg()
+        cfg["mcp"]["codebase_memory"]["agentes_escritura"] = ["build"]
+        self.escribir_cfg(cfg)
+        harness.sync(self.r.dir)
+        mcp, oj = self.mcp_cfg(), self.opencode()
+        pref = f"{mcp['servidor']}_"
+        vetadas = [f"{pref}{w}" for w in mcp["herramientas_escritura"]]
+        self.assertIn("build", mcp["agentes_consulta"], "el que escribe también consulta")
+        t = oj["agent"]["build"]["tools"]
+        self.assertIs(t[f"{pref}*"], True, "build escribe: servidor abierto por el patrón")
+        for k in vetadas:
+            self.assertNotIn(k, t, f"build escribe: {k} queda abierta por el patrón, no como clave vetada")
+        t = oj["agent"]["explorador"]["tools"]
+        self.assertIs(t[f"{pref}*"], True, "explorador solo consulta: servidor abierto")
+        for k in vetadas:
+            self.assertIs(t[k], False, f"explorador solo consulta: {k} vetada")
+        cfg["mcp"]["codebase_memory"]["agentes_escritura"] = ["mecanico"]
+        self.escribir_cfg(cfg)
+        with self.assertRaises(harness.ConfigError):
+            harness.sync(self.r.dir)
 
     # ------------------------------------------------------------------------- 9.3
     def test_9_3_verificar_secretos_pasa_con_un_ejemplo_por_regex(self):
