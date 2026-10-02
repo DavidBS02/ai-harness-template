@@ -35,4 +35,13 @@ if [ "$BMAD" = 1 ]; then
       [ -f "$f" ] && grep -q 'output_folder: _bmad-output' "$f" || echo "⚠️  Revisa output_folder en $f (debe ser _bmad-output)"; done
   fi
 fi
+
+# Memoria de código (D9): el binario solo si el interruptor está encendido
+if python3 -c 'import json, os, sys
+c = json.load(open(os.environ.get("HARNESS_CONFIG") or "harness.json")).get("mcp", {}).get("codebase_memory", {})
+sys.exit(0 if c.get("habilitado") else 1)' 2>/dev/null; then
+  bash scripts/cbm-instalar.sh
+else
+  echo "Memoria de código apagada (harness.json → mcp.codebase_memory.habilitado): no se instala codebase-memory-mcp"
+fi
 echo "Listo. Siguiente: claude → /descubrir"

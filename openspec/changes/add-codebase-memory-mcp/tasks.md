@@ -76,9 +76,9 @@
 
 ## 10. Diagnóstico y empaquetado (@mecanico; 10.1 build)
 
-- [ ] 10.1 `doctor` según el requisito «Diagnóstico de la memoria de código» (binario y versión, `verificar-secretos`, hooks ejecutables, existencia del índice; apagado → una línea ok); `harness.py versiones` lista también `binarios`; verificar con `python3 scripts/harness.py doctor` en los dos estados del interruptor
-- [ ] 10.2 `scripts/bootstrap.sh` (archivos nuevos y líneas de `.gitignore`) e `instalar-frameworks.sh` (llama a `cbm-instalar.sh` si está encendido), según D9; verificar con el test 11.1
-- [ ] 10.3 Actualizar el docstring de uso de `harness.py` con el subcomando `cbm`; verificar con `python3 scripts/harness.py | grep cbm`
+- [x] 10.1 `doctor` según el requisito «Diagnóstico de la memoria de código» (binario y versión, `verificar-secretos`, hooks ejecutables, existencia del índice; apagado → una línea ok); `harness.py versiones` lista también `binarios`; verificar con `python3 scripts/harness.py doctor` en los dos estados del interruptor
+- [x] 10.2 `scripts/bootstrap.sh` (archivos nuevos y líneas de `.gitignore`) e `instalar-frameworks.sh` (llama a `cbm-instalar.sh` si está encendido), según D9; verificar con el test 11.1
+- [x] 10.3 Actualizar el docstring de uso de `harness.py` con el subcomando `cbm`; verificar con `python3 scripts/harness.py | grep cbm`
 
 ## 11. Prueba de humo e integración (build)
 

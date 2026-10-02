@@ -24,6 +24,7 @@ Uso:
   harness.py versiones [--check]        versiones fijadas (.harness/versiones.json) vs instaladas
   harness.py fijar-acciones [--aplicar] fija las GitHub Actions a su SHA (usa gh)
   harness.py secretos-listar            archivos secretos del repo (los enmascara el contenedor)
+  harness.py cbm verificar-secretos|ruta-cache|invalidar-cache|marcar-indexado   memoria de código (exclusiones e índice)
   harness.py doctor [--tests]           diagnóstico del harness (config, control, secretos, versiones)
 
 Variables: HARNESS_CONFIG (ruta de harness.json; el gate de CI usa la de la rama base),
@@ -1198,6 +1199,31 @@ def dir_estado_cbm(root, cfg):
     return p if p.is_absolute() else Path(root) / p
 
 
+def plataforma_binarios():
+    """<os>-<arch> en la que cbm-instalar.sh deja el binario (mismas reglas que scripts/cbm)."""
+    u = os.uname()
+    arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}.get(u.machine.lower())
+    return f"{u.sysname.lower()}-{arch or u.machine.lower()}"
+
+
+def binario_instalado(root, paquete):
+    """(ruta, versión) del binario fijado, o (None, None) si no está instalado.
+
+    Misma resolución que scripts/cbm: .harness/bin/<plataforma>/ primero y /usr/local/bin
+    (contenedor) después; la versión sale de `--version`, igual que la compara el envoltorio.
+    """
+    for p in (Path(root) / ".harness" / "bin" / plataforma_binarios() / paquete, Path("/usr/local/bin") / paquete):
+        if not os.access(p, os.X_OK):
+            continue
+        try:
+            r = subprocess.run([str(p), "--version"], capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return p, None
+        m = re.search(r"\d+\.\d+\.\d+", r.stdout + r.stderr)
+        return p, m.group(0) if m else None
+    return None, None
+
+
 def sha_cbmignore(root):
     import hashlib
     p = Path(root) / ".cbmignore"
@@ -1350,6 +1376,36 @@ def doctor(root, con_tests=False):
                 av(f"{paq}: instalada {v}, fijada {fijada} (actualiza con intención: docs/SEGURIDAD.md → upgrades)")
         if not ver.get("imagen_base_digest"):
             av("imagen del contenedor sin digest fijado (.harness/versiones.json → imagen_base_digest)")
+    # memoria de código (spec «Diagnóstico de la memoria de código»)
+    mcp = cfg.get("mcp", {}).get("codebase_memory", {})
+    if not mcp.get("habilitado"):
+        ok("memoria de código apagada")
+    else:
+        fij = ver.get("binarios", {}).get("codebase-memory-mcp")
+        fijada = fij.get("version") if isinstance(fij, dict) else fij
+        ruta, actual = binario_instalado(root, "codebase-memory-mcp")
+        if not fijada:
+            av("codebase-memory-mcp sin versión fijada (.harness/versiones.json → binarios)")
+        elif ruta is None:
+            av("codebase-memory-mcp no está instalado (.harness/bin/) → bash scripts/cbm-instalar.sh")
+        elif actual != fijada:
+            av(f"codebase-memory-mcp: instalada {actual or '?'}, fijada {fijada} → bash scripts/cbm-instalar.sh")
+        else:
+            ok(f"codebase-memory-mcp {fijada} en {ruta}")
+        faltan = verificar_secretos_cbm(root, cfg)
+        (er if faltan else ok)(f"secretos sin excluir del índice: {', '.join(faltan)} → patrón en mcp.codebase_memory.ignorar + sync"
+                              if faltan else "secretos cubiertos por .cbmignore (no se indexan)")
+        sin_ejec = [f for f in ("scripts/cbm-indexar.sh", ".githooks/post-merge", ".githooks/post-checkout")
+                    if not os.access(Path(root) / f, os.X_OK)]
+        (er if sin_ejec else ok)(f"re-indexado no funcionaría: ausentes o sin permiso de ejecución: {', '.join(sin_ejec)}"
+                                if sin_ejec else "hooks de re-indexado presentes y ejecutables")
+        marca = dir_estado_cbm(root, cfg) / "cbmignore.sha256"
+        if not dir_cache_cbm(root, cfg).exists():
+            av("índice compartido sin crear → bash scripts/cbm-indexar.sh")
+        elif not marca.exists():
+            av("este repo aún no está indexado → bash scripts/cbm-indexar.sh")
+        else:
+            ok("índice del repo presente (marcador .harness/cbm/cbmignore.sha256)")
     latest = []
     for f in [".harness/contenedor/Dockerfile", "scripts/instalar-frameworks.sh", ".github/workflows/proceso.yml"]:
         pth = Path(root) / f
@@ -1496,6 +1552,12 @@ def main(argv):
             marca = "=" if i == v else ("?" if i is None else "≠")
             dif += marca == "≠"
             print(f"{marca} {paq:32} fijada {v:10} instalada {i or '-'}")
+        for paq, fijado in ver.get("binarios", {}).items():
+            v = fijado.get("version") if isinstance(fijado, dict) else fijado
+            _, i = binario_instalado(root, paq)
+            marca = "=" if i == v else ("?" if i is None else "≠")
+            dif += marca == "≠"
+            print(f"{marca} {paq:32} fijada {str(v):10} instalada {i or '-'}")
         return 1 if ("--check" in args and dif) else 0
     if cmd == "fijar-acciones":
         wf = Path(root) / ".github/workflows"
