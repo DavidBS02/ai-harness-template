@@ -38,7 +38,11 @@
   "agent": {
     "build": {
       "tools": {
-        "codebase-memory_*": true
+        "codebase-memory_*": true,
+        "codebase-memory_index_repository": false,
+        "codebase-memory_delete_project": false,
+        "codebase-memory_manage_adr": false,
+        "codebase-memory_ingest_traces": false
       }
     },
     "explorador": {

@@ -104,6 +104,6 @@ Revisiones por riesgo: bajo → Revisión 1 · medio → + Revisión 2 · alto �
 | Estado | encendida (`habilitado: true`) |
 | Versión | `0.11.0` (fijada en `.harness/versiones.json → binarios`) |
 | Quién consulta el índice | agente(s) `build`, `explorador`, `recolector`, `contexto-largo`, `revisor-gratis`, `revisor-fuerte`, `revisor-bmad` (el veto global `codebase-memory_*` se lo quita al resto) |
-| Quién escribe el índice | agente(s) `build` + scripts del harness (hooks post-merge/post-checkout, `cbm-indexar.sh`, `/init-harness`) |
+| Quién escribe el índice | agente(s) nadie + scripts del harness (hooks post-merge/post-checkout, `cbm-indexar.sh`, `/init-harness`) |
 | Vetadas por defecto a Claude y al resto de agentes | `index_repository`, `delete_project`, `manage_adr`, `ingest_traces` |
 Detalle: `docs/harness-guide.md` §16.
