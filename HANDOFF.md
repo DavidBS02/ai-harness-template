@@ -82,3 +82,32 @@
 
 ### 1.3 OpenCode 1.18.33 `tools`/`agent.tools` (MANUAL — queda para el humano)
 Confirmar en una sesión real de OpenCode que el veto global `tools: {"codebase-memory_index_repository": false}` + `agent.build.tools: {"...": true}` veta la herramienta a un subagente (p. ej. `revisor-gratis`) y la deja a `build`, con el prefijo `codebase-memory_`. Si el esquema difiriera, usar la clave `permission` equivalente y anotarlo aquí. El selftest (9.2) cubre la estructura del `opencode.json` generado; esta verificación de runtime queda pendiente.
+
+## Grupo 7 — Script de re-indexado y hooks de git (S3)
+
+- **7.1 `scripts/cbm-indexar.sh [--fondo]`**: interruptor, lock `mkdir`+PID (huérfano si el PID
+  muere o pasa de 30 min), `verificar-secretos` → `invalidar-cache` → `index_repository` →
+  `marcar-indexado`. Con `--fondo` el lock se toma en el proceso rápido y lo suelta el worker
+  desacoplado (`nohup`, log en `.harness/cbm/ultimo-indexado.log`), que es lo que evita que dos
+  disparos seguidos indexen dos veces. Flag interno `--lock-comprado` para ese worker.
+  Medido: primer plano OK, `--fondo` 0,08 s.
+- **7.2 `.githooks/post-merge` y `.githooks/post-checkout`**: `post-checkout` solo con `$3=1` y sin
+  `rebase-merge`/`rebase-apply` bajo `git rev-parse --git-dir` (sirve también en worktree, que
+  dispara el hook en su propia raíz). Los dos: `|| true; exit 0`, sin salida.
+  Verificado a mano: switch → log nuevo; `git checkout -- README.md` → sin log; `rebase-merge`
+  presente → sin log; `worktree add` → log en `../wt-cbm/.harness/cbm/`; rebase real → sin indexado
+  a mitad; con `scripts/cbm-indexar.sh` o el binario ausentes git no muestra errores.
+- **9.7** (delegado a @mecanico, revisado): clase `TestHooksReindexado` con 5 tests sobre el
+  binario falso (solo `$3=1`, rebase, lock tomado, fallo del indexador → los hooks salen con 0,
+  `habilitado:false` sin log) + aserciones de `TestEmpaquetado` de que los scripts y hooks están
+  en git como `100755`. Suite completa: 75 tests OK (~4 min).
+
+### Lo que broke y se arregló aquí (para el que siga)
+
+- El fixture `Repo` de `scripts/test_harness.py` copia `.githooks` y hace `git checkout`, así que
+  desde 7.2 los hooks creaban `.harness/cbm/` en el repo temporal y `git add -A` lo recogía:
+  7 tests de riesgo, nivel, evidencia y presupuesto fallaban. Arreglado ignorando
+  `.harness/cbm/` en `.git/info/exclude` del temporal (exclude local: ningún test lo ve y no toca
+  el `.gitignore` del repo). Ojo con esto al añadir hooks nuevos al fixture.
+- Los tests de hooks lanzan el indexado en segundo plano: `TestHooksReindexado` espera con límite
+  de tiempo a que el worker termine antes de cerrar el temporal.
