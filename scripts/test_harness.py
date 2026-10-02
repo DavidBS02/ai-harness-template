@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -42,6 +43,11 @@ class Repo:
         for c in ("git init -q", "git config user.email t@t", "git config user.name t", "git checkout -q -b main",
                   "git config core.hooksPath .githooks"):
             sh(c, self.dir)
+        # Los hooks de re-indexado (D7) crean .harness/cbm/ al cambiar de rama. Aquí se ignora solo
+        # en el temporal, como el .gitignore del repo real, para que git add -A (commit/rama) no lo
+        # recoja y falsee el cálculo de riesgo o la evidencia. Exclude local: no lo ve ningún test.
+        excluir = self.dir / ".git/info/exclude"
+        excluir.write_text(excluir.read_text() + ".harness/cbm/\n")
         self.escribir("README.md", "x")
         self.escribir("src/app.ts", "x")
         self.escribir("src/auth/login.ts", "x")
@@ -272,6 +278,11 @@ class TestEmpaquetado(unittest.TestCase):
         modos = subprocess.run(["git", "ls-files", "-s", ".githooks", "scripts"], cwd=BASE, capture_output=True, text=True).stdout.splitlines()
         no_ejec = [l.split()[-1] for l in modos if l.split()[0] != "100755" and not l.endswith(("test_harness.py",))]
         self.assertEqual(no_ejec, [], "git debe registrarlos como 100755 o los hooks se ignoran al clonar")
+        ejecutables = {l.split()[-1] for l in modos if l.split()[0] == "100755"}
+        for ruta in ("scripts/cbm", "scripts/cbm-indexar.sh", "scripts/cbm-instalar.sh",
+                     ".githooks/post-merge", ".githooks/post-checkout"):
+            self.assertIn(ruta, ejecutables,
+                          f"{ruta} debe estar en git como 100755 (sin modo ejecutable git lo ignora al clonar)")
 
 
 class TestRutasYSync(unittest.TestCase):
@@ -974,3 +985,171 @@ class TestMemoriaDeCodigo(unittest.TestCase):
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertEqual(res.stdout.strip(), "este repo no estaba en el índice: se indexa en frío")
         self.assertEqual(self.llamadas_a("delete_project"), [], "nada que borrar")
+
+
+# ==================================================== 9.7: hooks de re-indexado (D7)
+
+
+class TestHooksReindexado(unittest.TestCase):
+    """Tarea 9.7: `.githooks/post-checkout` y `.githooks/post-merge` sobre el binario falso.
+
+    Mismo aislamiento que TestMemoriaDeCodigo: los hooks corren con cwd en el repo temporal,
+    así que `git rev-parse --show-toplevel` y el `estado_dir` relativo (`harness.json`) caen
+    dentro de él, y la caché compartida se apunta con XDG_CACHE_HOME a un temporal. Ni el repo
+    real ni `~/.cache/ai-harness/cbm` se tocan. Todo lo que lanzan los hooks va además a
+    `.harness/cbm/ultimo-indexado.log` y al binario falso, nunca a la consola de git."""
+
+    def setUp(self):
+        self.r = Repo()
+        harness._CONFIABLE.clear()
+        os.environ.pop("HARNESS_OVERRIDE", None)
+        self.tmp = Path(tempfile.mkdtemp())
+        harness.sync(self.r.dir)  # .cbmignore: sin él el indexado en segundo plano falla
+
+    def tearDown(self):
+        self.r.cerrar()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+        harness._CONFIABLE.clear()
+
+    # ------------------------------------------------------------------ utilidades
+    def estado(self):
+        return self.r.dir / ".harness/cbm"
+
+    def instalar_binario_falso(self):
+        arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}[platform.machine().lower()]
+        p = self.r.dir / f".harness/bin/{platform.system().lower()}-{arch}/codebase-memory-mcp"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(BINARIO_FALSO)
+        p.chmod(0o755)
+        return p
+
+    def env_indice(self, extra=None):
+        return {"XDG_CACHE_HOME": str(self.tmp / "cache"), "CBM_FAKE_LOG": str(self.tmp / "log.jsonl"), **(extra or {})}
+
+    def llamadas(self):
+        log = self.tmp / "log.jsonl"
+        if not log.exists():
+            return []
+        r = []
+        for l in log.read_text().splitlines():
+            try:
+                r.append(json.loads(l))
+            except json.JSONDecodeError:
+                pass  # línea a medio escribir del worker en segundo plano: se lee en la próxima vuelta
+        return r
+
+    def llamadas_a(self, herramienta):
+        return [l for l in self.llamadas() if herramienta in l["argv"]]
+
+    def indexados(self):
+        return len(self.llamadas_a("index_repository"))
+
+    def log_indexado(self):
+        p = self.estado() / "ultimo-indexado.log"
+        return p.read_text(errors="replace") if p.exists() else "(sin log)"
+
+    def interruptor(self, estado):
+        c = json.loads((self.r.dir / "harness.json").read_text())
+        c["mcp"]["codebase_memory"]["habilitado"] = estado
+        (self.r.dir / "harness.json").write_text(json.dumps(c))
+        harness.sync(self.r.dir)
+
+    def disparar(self, hook, *args, env=None):
+        """Dispara un hook de git a mano (argumentos iguales a los que pasa git)."""
+        return sh(["bash", f".githooks/{hook}", *args], self.r.dir, env)
+
+    def esperar(self, cond, seg=30):
+        """cond() con límite de tiempo: el indexado corre fuera del proceso del test."""
+        fin = time.time() + seg
+        while time.time() < fin:
+            if cond():
+                return True
+            time.sleep(0.05)
+        return bool(cond())
+
+    def matar(self, p):
+        p.kill()
+        p.wait()
+
+    # ------------------------------------------------------------------------- 9.7
+    def test_9_7_post_checkout_solo_lanza_con_cambio_de_rama(self):
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        # $3 = 0 (git checkout -- <archivo>): el código del repo no cambió, no hay nada que indexar
+        p = self.disparar("post-checkout", "prev", "nxt", "0", env=env)
+        self.assertEqual(p.returncode, 0, "el hook termina con 0")
+        self.assertEqual(p.stdout + p.stderr, "", "el hook no imprime nada")
+        self.assertFalse(self.estado().exists(), "sin cambio de rama no se invoca al indexador")
+        self.assertEqual(self.llamadas(), [], "el binario falso no se invoca")
+        # $3 = 1 (cambio de rama): lanza el indexado en segundo plano con el binario falso
+        p = self.disparar("post-checkout", "prev", "nxt", "1", env=env)
+        self.assertEqual(p.returncode, 0, "el hook vuelve de inmediato con 0")
+        self.assertEqual(p.stdout + p.stderr, "", "sin salida: no interrumpe la operación de git")
+        self.assertTrue(self.esperar(lambda: self.indexados() >= 1),
+                        f"el indexado en segundo plano no llegó a index_repository; log:\n{self.log_indexado()}")
+        self.assertTrue(self.esperar(lambda: not (self.estado() / "indexando.lock").exists()),
+                        f"el indexado en segundo plano no terminó; log:\n{self.log_indexado()}")
+        self.assertTrue((self.estado() / "ultimo-indexado.log").exists(), "el log del indexado en segundo plano")
+
+    def test_9_7_post_checkout_no_indexa_durante_un_rebase(self):
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        for marca in ("rebase-merge", "rebase-apply"):
+            (self.r.dir / ".git" / marca).mkdir(parents=True, exist_ok=True)
+            p = self.disparar("post-checkout", "prev", "nxt", "1", env=env)
+            self.assertEqual(p.returncode, 0)
+            self.assertEqual(p.stdout + p.stderr, "")
+            self.assertFalse(self.estado().exists(), f"con .git/{marca} en curso no se indexa")
+            self.assertEqual(self.llamadas(), [], f"con .git/{marca} el binario falso no se invoca")
+            shutil.rmtree(self.r.dir / ".git" / marca, ignore_errors=True)
+
+    def test_9_7_dos_disparos_con_el_lock_tomado_lanzan_un_solo_indexado(self):
+        self.instalar_binario_falso()
+        env = self.env_indice()
+        lock = self.estado() / "indexando.lock"
+        # primer disparo: lanza y termina; al salir el worker suelta el lock (trap EXIT)
+        p = self.disparar("post-checkout", "prev", "nxt", "1", env=env)
+        self.assertEqual(p.returncode, 0)
+        self.assertTrue(self.esperar(lambda: self.indexados() >= 1),
+                        f"el primer disparo no indexa; log:\n{self.log_indexado()}")
+        self.assertTrue(self.esperar(lambda: not lock.exists()),
+                        f"el primer indexado no termina; log:\n{self.log_indexado()}")
+        # hay un indexado en curso: mismo lock mkdir+PID con un PID vivo, que es lo que mira el script
+        durmiente = subprocess.Popen(["sleep", "120"])
+        self.addCleanup(self.matar, durmiente)
+        lock.mkdir(parents=True, exist_ok=True)
+        (lock / "pid").write_text(str(durmiente.pid))
+        # segundo disparo, seguido del primero y con el lock tomado: no lanza otro indexador.
+        # cbm-indexar.sh escribe el PID del worker ANTES de volver, y el hook espera a que el
+        # script vuelva: si el segundo disparo hubiera lanzado, el PID ya estaría cambiado aquí.
+        p = self.disparar("post-checkout", "prev", "nxt", "1", env=env)
+        self.assertEqual(p.returncode, 0)
+        self.assertEqual(p.stdout + p.stderr, "")
+        self.assertEqual((lock / "pid").read_text(), str(durmiente.pid),
+                         "el segundo disparo no arranca otro indexador: el lock sigue intacto")
+        self.assertEqual(self.indexados(), 1, "solo uno de los dos disparos llegó a indexar")
+
+    def test_9_7_los_dos_hooks_salen_cero_aunque_el_indexador_falle(self):
+        marca = self.tmp / "indexador-llamado.txt"
+        indexador = self.r.dir / "scripts/cbm-indexar.sh"
+        for hook, args in (("post-merge", ()), ("post-checkout", ("prev", "nxt", "1"))):
+            # indexador roto: registra SU invocación y revienta
+            indexador.write_text(f'#!/usr/bin/env bash\necho "$*" >> "{marca}"\nexit 7\n')
+            indexador.chmod(0o755)
+            p = self.disparar(hook, *args)
+            self.assertEqual(p.returncode, 0, f"{hook}: un fallo del indexador no puede fallar git")
+            self.assertEqual(p.stdout + p.stderr, "", f"{hook}: sin salida ni siquiera ante el fallo")
+        self.assertEqual(marca.read_text().splitlines(), ["--fondo", "--fondo"],
+                         "los dos hooks invocan a cbm-indexar.sh --fondo y su fallo no les llega")
+
+    def test_9_7_con_la_memoria_apagada_no_lanza_nada_ni_crea_el_log(self):
+        self.instalar_binario_falso()
+        self.interruptor(False)
+        env = self.env_indice()
+        for hook, args in (("post-merge", ()), ("post-checkout", ("prev", "nxt", "1"))):
+            p = self.disparar(hook, *args, env=env)
+            self.assertEqual(p.returncode, 0, f"{hook}: con la memoria apagada termina con 0")
+            self.assertEqual(p.stdout + p.stderr, "")
+        self.assertEqual(self.llamadas(), [], "el binario falso no se invoca")
+        self.assertFalse((self.estado() / "ultimo-indexado.log").exists(), "no se crea ultimo-indexado.log")
+        self.assertFalse(self.estado().exists(), "cbm-indexar.sh sale sin tocar el estado local del repo")
