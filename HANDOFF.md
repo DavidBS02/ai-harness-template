@@ -1,13 +1,13 @@
 # Handoff (estado vivo de la rama)
 
-- Fecha / herramienta / modelo: 2026-10-02 · OpenCode (build, `HARNESS_OVERRIDE=1`, fuera del contenedor) · `opencode-go/space-bunny-free` (gratis, cero retención; excepción del usuario, ver abajo)
+- Fecha / herramienta / modelo: 2026-10-02 (**S5**) · OpenCode (build, `HARNESS_OVERRIDE=1`, fuera del contenedor) · `opencode-go/deepseek-v4.1-flash` (excepción autorizada del usuario en S5 pese al riesgo alto, ver abajo)
 - Issue / spec: #2 · openspec/changes/add-codebase-memory-mcp (nivel 3, riesgo alto, OpenCode-zona-roja: autorizado)
-- Qué se hizo: grupos 0 (arquitecto), 1, 2, 3, 4, 3b, 5, 6, 7, 10 y 11.1–11.2 completos; **falta 11.3** (push + PR listo, esperando decisión del arquitecto sobre el riesgo residual del camino MCP, ver abajo).
-- Qué falta: **1.3 y la parte manual de 6.1** (humano), y **11.3**. Todo lo demás está implementado, commiteado y con tests verdes.
+- Qué se hizo: grupos 0 (arquitecto), 1, 2, 3, 4, 3b, 5, 6, 7, 10, 11.1–11.2 y **12.1–12.3** completos; **falta 11.3** (push + PR listo), bloqueado por la Revisión 2 (ver «Sesión S5»).
+- Qué falta: **1.3 y la parte manual de 6.1** (humano), **11.3** y **decisión del arquitecto sobre los hallazgos de la Revisión 2** (ver abajo). Todo lo demás está implementado, commiteado y con tests verdes.
 - Decisiones tomadas y por qué: ver abajo («Hallazgos técnicos»).
 - Dudas para el arquitecto: ver abajo.
 - Riesgos: cambio grande del plano de control; el PR exige aprobación humana en GitHub.
-- **Decisión del arquitecto (2026-10-02), aprobada por el usuario: opción (a).** Nadie indexa por MCP: `agentes_escritura: []` en `harness.json`, y spec, design, proposal, README y harness-guide §16 ya están actualizados. Siguiente sesión: `/ejecutar-cambio add-codebase-memory-mcp grupo 12` (12.1 sync, 12.2 tests, 12.3 repetir la Revisión 2 y luego 11.3). La Revisión 1 hay que repetirla también, porque el commit cambia y su evidencia queda atada al anterior.
+- **Decisión del arquitecto (2026-10-02), aprobada por el usuario: opción (a).** Nadie indexa por MCP: `agentes_escritura: []` en `harness.json`, y spec, design, proposal, README y harness-guide §16 ya están actualizados. Hecha en S5: grupo 12 (12.1 sync, 12.2 tests, 12.3 repetir las dos revisiones). La Revisión 1 volvió a APROBAR; la Revisión 2 volvió a CORREGIR (ver «Sesión S5»).
 - (Anterior) Siguiente paso sugerido: el arquitecto decide el riesgo residual del camino MCP («Revisiones 1 y 2» más abajo). Si lo acepta tal cual, 11.3 es push + `gh pr ready` + Revisión 3 (Luna). Si quiere cerrarlo de verdad, es `/opsx:update add-codebase-memory-mcp` (mi recomendación: opción 1, retirar `index_repository` de `agentes_escritura`).
 - Nota del arquitecto (2026-10-01, tras S3): los revisores de OmniRoute nunca se configuraron (`REEMPLAZA-CON-ID`). Ahora apuntan a OpenCode Go, en una familia distinta del modelo que construyó: `revisor-gratis` → `deepseek-v4.1-flash` (Revisión 1) y `revisor-fuerte` → `deepseek-v4-pro` (Revisión 2). `sync` ya regeneró `.opencode/agents/revisor-*.md`, `opencode.json` y `RUTAS.md` en el árbol: commitéalos en S4 junto con los demás adaptadores.
 - **Excepción de modelo (2026-10-01):** el change es de riesgo **alto**, así que por `modelo_por_riesgo` cada sesión debería ir con el modelo fuerte; el usuario lo autorizó explícitamente para S1, S2, S3, **S4** (`space-bunny-free`, gratis y cero retención) y **S5** (`deepseek-v4.1-flash`, autorización expresa del 2026-10-02 pese a que el change sigue siendo de riesgo alto). S6 en adelante vuelven al modelo fuerte salvo autorización nueva.
@@ -22,8 +22,31 @@
 | 2 | 2.1–2.3 | a24c30a |
 | 3+4 | 3.1–3.3, 4.1–4.3 | bde07f2 |
 | 3b+5+6 (S2) | 3.4, 5.1–5.6, 6.1 (código), 9.1–9.3 | `bcca30a` (código) y `89799bb` (adaptadores + selftest) |
+| 7 (S3) | 7.1–7.2, 9.7 | ver sección «Grupo 7» |
+| 10+11.1–11.2 (S4) | 10.1–10.3, 11.1–11.2 | ver sección «Grupo 10,11 (S4)» |
+| 12 (S5) | 12.1 (`6f49af5`), 12.2 (`ab3411a`), 12.3 (revisiones) | `63b183c` (task done) |
 
-**Nada sin commitear.** Selftest completo verde: **70 tests OK** (`python3 -m unittest discover -s scripts -p 'test_*.py'`, ~230 s). `python3 scripts/harness.py sync --check` en verde.
+**Nada sin commitear.** Selftest completo verde: **83 tests OK** (`python3 -m unittest discover -s scripts -p 'test_*.py'`, ~300 s). `python3 scripts/harness.py sync --check` en verde.
+
+## Sesión S5 (grupo 12): nadie indexa por MCP — hecho, con Revisión 2 en CORREGIR
+
+- **12.1 (`6f49af5`):** `python3 scripts/harness.py sync` regenera `opencode.json`; `build` pasa a tener `codebase-memory_*: true` **y las 4 de escritura en `false`** (antes solo tenía el comodín). `claves_cbm_opencode` ya soporta `agentes_escritura: []`: no hubo que tocar `harness.py`. Verificado con `python3 -c "...open('opencode.json')['agent']['build']"` y `sync --check` → 0.
+- **12.2 (`ab3411a`):** 9.1 comprueba que con la lista vacía **ningún** agente recibe las 4 de escritura; el test de incoherencia usaba «`build` fuera de `agentes_consulta`», premisa que dejó de ser incoherente al vaciar la lista — ahora usa `agentes_escritura: ["mecanico"]`. Nuevo `test_9_2_con_agentes_escritura_abre_solo_a_esos` cubre la rama de apertura. Selftest completo: **83 tests OK**.
+- **12.3 (revisiones atadas a `63b183c`, vigentes):**
+  - **Revisión 1** (@revisor-gratis, `opencode-go/deepseek-v4.1-flash`): **APROBAR**. Solo hallazgos MENOR de documentación (`design.md` y este HANDOFF desactualizados), sin BLOQUEANTE ni IMPORTANTE.
+  - **Revisión 2** (@revisor-fuerte, `opencode-go/deepseek-v4-pro`): **CORREGIR**.
+- **11.3 NO se hizo.** La Revisión 2 no aprueba y el gate pide un APROBAR vigente del slot 2. No hay arreglo en alcance del ejecutor (abajo), y repetir la revisión **excedería `vueltas_max`** (4→5) porque volvería a ser CORREGIR. HANDOFF y DETENTE, como manda el método.
+
+### Hallazgos de la Revisión 2 (decisión del arquitecto, no del ejecutor)
+
+1. **[BLOQUEANTE] El veto descansa en la clave legacy `tools` y su precedencia no estaba verificada en runtime.**
+   Evidencia recogida en S5 con el binario real (`opencode 1.18.34`, sin arrancar el daemon):
+   - `opencode debug agent build` (y `revisor-gratis`) resuelven las claves `tools` a una lista `permission` **ordenada**: `codebase-memory_*` deny (global) → `codebase-memory_*` allow (agente) → las **4 específicas en deny** (`index_repository`, `delete_project`, `manage_adr`, `ingest_traces`).
+   - La doc oficial (https://opencode.ai/docs/permissions/): desde v1.1.1 `tools` está **deprecado y fusionado en `permission`**; «las reglas se evalúan por patrón, gana la **última que casa**». Con ese orden, las 4 de escritura quedan **denegadas** y las de lectura permitidas.
+   - Es verificación del **resolvedor** de OpenCode, no de una sesión con la lista real de herramientas. **La tarea 1.3 sigue siendo manual del humano**; queda sin marcar (no se marca desde aquí). El commit `63b183c` no cambia por esto: no hay defecto de código, el mecanismo funciona y es el documentado.
+2. **[IMPORTANTE] El guardia de runtime no tiene rama MCP.** `.opencode/plugins/guardia.ts` no intercepta `codebase-memory_*`: un `tools/call` de escritura cae al `return {"block": False}`. No hay capa de runtime para las 4 de escritura; la única barrera es la config del punto 1. Es **plano de control** (`.opencode/plugins/`) y era la opción 3 que el arquitecto **descartó** al elegir (a); el ejecutor no puede tocarlo. Es defensa en profundidad, no el contrato.
+
+**Lo que el arquitecto tiene que decidir:** (1) dar por buena la verificación del resolvedor y cerrar 1.3 (o migrar el veto de `tools` a `permission`, aunque 1.18.34 ya lo migra solo); (2) decidir si la falta de rama MCP en `guardia.ts` es riesgo residual aceptable o exige la opción 3. Después, repetir solo la Revisión 2: si aprueba, 11.3 es push + `gh pr ready`. No hace falta repetir la 1 (siguió APROBAR y no cambia el código).
 
 ## Sesión S2 (grupo 3b, 5, 6): qué quedó comprobado y cómo
 
