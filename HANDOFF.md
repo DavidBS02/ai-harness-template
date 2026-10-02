@@ -1,20 +1,21 @@
 # Handoff (estado vivo de la rama)
 
-- Fecha / herramienta / modelo: 2026-10-02 (**S5**) · OpenCode (build, `HARNESS_OVERRIDE=1`, fuera del contenedor) · `opencode-go/deepseek-v4.1-flash` (excepción autorizada del usuario en S5 pese al riesgo alto, ver abajo)
+- Fecha / herramienta / modelo: 2026-10-02 (**S6**) · OpenCode (build, `HARNESS_OVERRIDE=1`, fuera del contenedor) · `opencode-go/deepseek-v4.1-flash` (excepción autorizada del usuario también para S6 pese al riesgo alto, ver abajo)
 - Issue / spec: #2 · openspec/changes/add-codebase-memory-mcp (nivel 3, riesgo alto, OpenCode-zona-roja: autorizado)
-- Qué se hizo: grupos 0 (arquitecto), 1, 2, 3, 4, 3b, 5, 6, 7, 10, 11.1–11.2 y **12.1–12.3** completos; **falta 11.3** (push + PR listo), bloqueado por la Revisión 2 (ver «Sesión S5»).
-- Qué falta: **1.3 y la parte manual de 6.1** (humano), **11.3** y **decisión del arquitecto sobre los hallazgos de la Revisión 2** (ver abajo). Todo lo demás está implementado, commiteado y con tests verdes.
+- Qué se hizo: grupos 0 (arquitecto), 1, 2, 3, 4, 3b, 5, 6, 7, 10, 11.1–11.2, **12.1–12.3** y **11.3** (push + PR listo) completos. El código del change está terminado.
+- Qué falta: solo la parte manual de 6.1 (humano) y la Revisión 3 (Luna) / aprobación humana del PR #3 (vía `/juzgar-pr`). Todo lo demás está implementado, commiteado y con tests verdes.
+- **S6 (2026-10-02), cierre de 1.3 y 12.3 + 11.3:** el arquitecto cerró los dos puntos de la Revisión 2 en `design.md → «Revisión del 2026-10-02 (tras S5)»` (evidencia del veto con `opencode debug agent` y rama MCP del plugin como riesgo aceptado). Se marcó 1.3 citando esa sección (`2793581`). Se repitió **solo la Revisión 2** (`@revisor-fuerte`, `deepseek-v4-pro`) sobre `2793581`: **APROBAR** (registro `20261002T152615Z-revisor-fuerte-2793581.json`); la Revisión 1 de `63b183c` sigue **APROBAR vigente**. Al estar las dos vigentes en APROBAR, se marcó 12.3, se hizo push y `gh pr ready`.
 - **Decisión del arquitecto sobre la Revisión 2 de S5 (2026-10-02):** los dos puntos quedan cerrados con evidencia en `design.md` → «Revisión del 2026-10-02 (tras S5)».
   - **Punto 1:** el arquitecto verificó el veto con `opencode debug agent revisor-gratis`: las 4 de escritura quedan en deny tras el allow del agente. Esto **cierra la tarea 1.3**, que la siguiente sesión puede marcar citando esa sección.
   - **Punto 2:** la falta de guardia MCP en `guardia.ts` es un riesgo aceptado; queda como deuda en el issue #5, junto con la migración a `permission`.
-  - **Siguiente paso, una sola sesión corta:** marcar 1.3, repetir solo la Revisión 2 (@revisor-fuerte) sobre HEAD, pasándole esa sección del design, y registrarla. Si aprueba, 11.3. Exceder `vueltas_max` solo hace que el gate exija la aprobación humana, que este PR ya necesita.
+  - **Siguiente paso, una sola sesión corta:** marcar 1.3, repetir solo la Revisión 2 (@revisor-fuerte) sobre HEAD, pasándole esa sección del design, y registrarla. Si aprueba, 11.3. Exceder `vueltas_max` solo hace que el gate exija la aprobación humana, que este PR ya necesita. **Hecho en S6** (ver arriba).
 - Decisiones tomadas y por qué: ver abajo («Hallazgos técnicos»).
 - Dudas para el arquitecto: ver abajo.
 - Riesgos: cambio grande del plano de control; el PR exige aprobación humana en GitHub.
 - **Decisión del arquitecto (2026-10-02), aprobada por el usuario: opción (a).** Nadie indexa por MCP: `agentes_escritura: []` en `harness.json`, y spec, design, proposal, README y harness-guide §16 ya están actualizados. Hecha en S5: grupo 12 (12.1 sync, 12.2 tests, 12.3 repetir las dos revisiones). La Revisión 1 volvió a APROBAR; la Revisión 2 volvió a CORREGIR (ver «Sesión S5»).
 - (Anterior) Siguiente paso sugerido: el arquitecto decide el riesgo residual del camino MCP («Revisiones 1 y 2» más abajo). Si lo acepta tal cual, 11.3 es push + `gh pr ready` + Revisión 3 (Luna). Si quiere cerrarlo de verdad, es `/opsx:update add-codebase-memory-mcp` (mi recomendación: opción 1, retirar `index_repository` de `agentes_escritura`).
 - Nota del arquitecto (2026-10-01, tras S3): los revisores de OmniRoute nunca se configuraron (`REEMPLAZA-CON-ID`). Ahora apuntan a OpenCode Go, en una familia distinta del modelo que construyó: `revisor-gratis` → `deepseek-v4.1-flash` (Revisión 1) y `revisor-fuerte` → `deepseek-v4-pro` (Revisión 2). `sync` ya regeneró `.opencode/agents/revisor-*.md`, `opencode.json` y `RUTAS.md` en el árbol: commitéalos en S4 junto con los demás adaptadores.
-- **Excepción de modelo (2026-10-01):** el change es de riesgo **alto**, así que por `modelo_por_riesgo` cada sesión debería ir con el modelo fuerte; el usuario lo autorizó explícitamente para S1, S2, S3, **S4** (`space-bunny-free`, gratis y cero retención) y **S5** (`deepseek-v4.1-flash`, autorización expresa del 2026-10-02 pese a que el change sigue siendo de riesgo alto). S6 en adelante vuelven al modelo fuerte salvo autorización nueva.
+- **Excepción de modelo (2026-10-01):** el change es de riesgo **alto**, así que por `modelo_por_riesgo` cada sesión debería ir con el modelo fuerte; el usuario lo autorizó explícitamente para S1, S2, S3, **S4** (`space-bunny-free`, gratis y cero retención), **S5** y **S6** (`deepseek-v4.1-flash`, autorización expresa del 2026-10-02 pese a que el change sigue siendo de riesgo alto). S7 en adelante vuelven al modelo fuerte salvo autorización nueva.
 - Nota del arquitecto (2026-10-01), modelos: `build` queda por defecto en `opencode-go/deepseek-v4.1-flash`, pero **este change es de riesgo alto**: según `modelo_por_riesgo`, cada sesión de este change va con DeepSeek V4 Pro, elegido con `/models` al abrir la sesión (requiere la región «Global» activada en la cuenta de Go; respaldo `mimo-v2.6-pro`, luego `glm-5.3`), `@mecanico` a `opencode/mimo-v2.6-flash-free` (respaldo `opencode-go/mimo-v2.6-flash`), `recolector` y `contexto-largo` a `deepseek-v4-pro` (motivo: `docs/LECCIONES.md` §21). `sync` ya regeneró `.opencode/agents/*.md` y `opencode.json` en el árbol; commitéalos con la tarea 5.5. Si la calidad de DeepSeek en un grupo no alcanza (tests en rojo tras 3 intentos), anótalo aquí y cambia con `/models` al respaldo.
 
 ## Estado de los commits
@@ -28,7 +29,8 @@
 | 3b+5+6 (S2) | 3.4, 5.1–5.6, 6.1 (código), 9.1–9.3 | `bcca30a` (código) y `89799bb` (adaptadores + selftest) |
 | 7 (S3) | 7.1–7.2, 9.7 | ver sección «Grupo 7» |
 | 10+11.1–11.2 (S4) | 10.1–10.3, 11.1–11.2 | ver sección «Grupo 10,11 (S4)» |
-| 12 (S5) | 12.1 (`6f49af5`), 12.2 (`ab3411a`), 12.3 (revisiones) | `63b183c` (task done) |
+| 12 (S5) | 12.1 (`6f49af5`), 12.2 (`ab3411a`) | `63b183c` (task done) |
+| 1.3 + 12.3 + 11.3 (S6) | 1.3 (`2793581`), 12.3 y 11.3 | ver sección «Sesión S6» |
 
 **Nada sin commitear.** Selftest completo verde: **83 tests OK** (`python3 -m unittest discover -s scripts -p 'test_*.py'`, ~300 s). `python3 scripts/harness.py sync --check` en verde.
 
