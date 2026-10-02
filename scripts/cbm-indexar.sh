@@ -49,15 +49,21 @@ edad_lock() {
 }
 tomar_lock() {
   mkdir -p "$ESTADO" 2>/dev/null || true
-  mkdir "$LOCK" 2>/dev/null && return 0
+  # El PID se escribe en el MISMO paso que crea el lock, también en primer plano: un lock sin
+  # PID parece huérfano y otro proceso se lo robaría, lanzando dos indexados a la vez.
+  if mkdir "$LOCK" 2>/dev/null; then echo $$ > "$LOCK/pid" 2>/dev/null || true; return 0; fi
   # Ya hay lock: está vivo si su PID existe y el lock tiene menos de 30 minutos
   local PID
   PID="$(cat "$LOCK/pid" 2>/dev/null || true)"
-  case "$PID" in ''|*[!0-9]*) :;; *)
-    if kill -0 "$PID" 2>/dev/null && [ "$(edad_lock)" -lt 1800 ]; then return 1; fi;;
+  case "$PID" in
+    ''|*[!0-9]*)
+      # Sin PID legible: si es recién creado se está escribiendo ahora mismo, se respeta
+      [ "$(edad_lock)" -lt 60 ] && return 1;;
+    *)
+      if kill -0 "$PID" 2>/dev/null && [ "$(edad_lock)" -lt 1800 ]; then return 1; fi;;
   esac
   rm -rf "$LOCK" 2>/dev/null || true
-  mkdir "$LOCK" 2>/dev/null && return 0
+  if mkdir "$LOCK" 2>/dev/null; then echo $$ > "$LOCK/pid" 2>/dev/null || true; return 0; fi
   return 1
 }
 
@@ -74,7 +80,12 @@ if [ "$FONDO" -eq 1 ] && [ "$LOCK_COMPRADO" -eq 0 ]; then
   disown 2>/dev/null || true
   exit 0
 fi
-trap 'rm -rf "$LOCK" 2>/dev/null || true' EXIT
+if [ "$LOCK_COMPRADO" -eq 1 ] && [ ! -d "$LOCK" ]; then
+  echo "El lock ya no existe (lo soltó quien lo tomó): no indexo." >&2
+  exit 1
+fi
+# Solo suelta el lock si sigue siendo nuestro: si otro proceso lo tomó, no lo tocamos.
+trap '[ "$(cat "$LOCK/pid" 2>/dev/null || true)" = "$$" ] && rm -rf "$LOCK" 2>/dev/null || true' EXIT
 
 printf '\n=== %s ===\n' "$(date '+%Y-%m-%d %H:%M:%S')"
 python3 "$RAIZ/scripts/harness.py" cbm verificar-secretos || exit 1

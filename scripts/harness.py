@@ -980,6 +980,12 @@ def claves_cbm_opencode(d, cfg):
         for h in vetadas:
             tools.pop(h, None)  # sin vetar una por una: el veto por patrón las cubre
         tools[veto] = False
+        # Purga previa: un agente que salió de agentes_consulta conserva el acceso si no se le
+        # quitan sus claves codebase-memory_* (el requisito pide cero herramientas para el resto).
+        for ag in (d.get("agent") or {}).values():
+            if isinstance(ag, dict) and isinstance(ag.get("tools"), dict):
+                for k in [k for k in ag["tools"] if isinstance(k, str) and k.startswith(prefijo)]:
+                    ag["tools"].pop(k)
         for a in consultas:
             t = d.setdefault("agent", {}).setdefault(a, {}).setdefault("tools", {})
             t[veto] = True
@@ -1389,7 +1395,8 @@ def doctor(root, con_tests=False):
         elif ruta is None:
             av("codebase-memory-mcp no está instalado (.harness/bin/) → bash scripts/cbm-instalar.sh")
         elif actual != fijada:
-            av(f"codebase-memory-mcp: instalada {actual or '?'}, fijada {fijada} → bash scripts/cbm-instalar.sh")
+            er(f"codebase-memory-mcp: instalada {actual or '?'}, fijada {fijada} (el envoltorio no "
+               f"arrancará con otra versión) → bash scripts/cbm-instalar.sh")
         else:
             ok(f"codebase-memory-mcp {fijada} en {ruta}")
         faltan = verificar_secretos_cbm(root, cfg)
